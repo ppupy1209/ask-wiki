@@ -1,4 +1,4 @@
-# 학습 과제 ② — Spring AI + RAG 파이프라인
+# 학습 과제 ② - Spring AI + RAG 파이프라인
 
 > study 제목: "Spring AI로 로컬 LLM 기반 RAG 구현"
 > 목표: "Java로 AI가 실제로 된다"를 자기 손으로 증명한다. 검색된 근거를 프롬프트에 넣어

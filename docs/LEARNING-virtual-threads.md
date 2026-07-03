@@ -1,4 +1,4 @@
-# 학습 과제 ① — Virtual Threads로 I/O 바운드 처리량 개선
+# 학습 과제 ① - Virtual Threads로 I/O 바운드 처리량 개선
 
 > study 제목: "Virtual Threads로 I/O 바운드 처리량 개선"
 > 목표: `POST /api/ask`는 임베딩·검색·LLM 호출로 **대부분의 시간을 대기(blocking)** 한다.
@@ -18,10 +18,10 @@
 ## 무엇을 구현하나
 
 Codex가 다음을 스텁으로 남겨둔다:
-1. `config/ThreadConfig` — Virtual Threads on/off를 프로퍼티로 토글 (`app.virtual-threads.enabled`).
+1. `config/ThreadConfig` - Virtual Threads on/off를 프로퍼티로 토글 (`app.virtual-threads.enabled`).
    - Spring Boot 3.3은 `spring.threads.virtual.enabled=true` 한 줄로 톰캣 executor를 가상 스레드로 바꿀 수 있다.
      이걸 프로퍼티로 켜고 끄며 A/B 비교할 수 있게 한다.
-2. `bench/` — 부하 비교 도구. **k6 스크립트**(`bench/ask-load.js`)로 동시 사용자(VU) 수를 올리며
+2. `bench/` - 부하 비교 도구. **k6 스크립트**(`bench/ask-load.js`)로 동시 사용자(VU) 수를 올리며
    처리량(req/s)과 p95/p99 응답시간을 뽑는다.
 
 ### 당신의 과제
