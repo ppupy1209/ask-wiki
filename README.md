@@ -125,11 +125,11 @@ docker run --rm -i --network rag-doc-service_default -e BASE=http://app:8080 gra
 
 | 지표 | 플랫폼 스레드 (OFF) | 가상 스레드 (ON) |
 |---|---|---|
-| 처리량 | 979 req/s | **2,395 req/s** (약 2.4배) |
-| p99 응답 | 597 ms | **218 ms** |
-| 평균 응답 | 495 ms | 203 ms |
+| 처리량 | 948 req/s | **2,394 req/s** (약 2.5배) |
+| p99 응답 | 839 ms | **219 ms** |
+| 평균 응답 | 502 ms | 203 ms |
 
-**해석:** 플랫폼 스레드는 기본 200개라 500명이 동시에 오면 300명이 큐에서 대기 → 처리량이 막히고 응답이 부풀었다. 가상 스레드는 대기 중 캐리어를 반납해 수백 개를 동시에 처리 → 처리량 2.4배, 응답시간은 순수 작업시간(200ms)에 근접. 상세 [`docs/LEARNING-virtual-threads.md`](docs/LEARNING-virtual-threads.md)
+**해석:** 플랫폼 스레드는 기본 200개라 500명이 동시에 오면 300명이 큐에서 대기 → 처리량이 막히고 p99가 839ms까지 부풀었다. 가상 스레드는 다운스트림 응답을 기다리는 동안 캐리어를 반납해 수백 개 요청을 동시에 처리 → 처리량 2.5배, p99는 큐 대기가 사라져 다운스트림 지연(200ms)에 근접. 상세 [`docs/LEARNING-virtual-threads.md`](docs/LEARNING-virtual-threads.md)
 
 ### ② Spring AI + RAG 파이프라인
 질문 임베딩 → 유사 청크 검색 → "컨텍스트만 근거로 답하라" 프롬프트 조립 → LLM. 문서에 없는 질문은 "모른다"고 답하도록 설계(환각 억제). 상세 [`docs/LEARNING-rag.md`](docs/LEARNING-rag.md)
