@@ -139,8 +139,16 @@ docker run --rm -i --network rag-doc-service_default -e BASE=http://app:8080 gra
 - 결과: N=___ 청크에서 검색 응답 `___ → ___ ms` *(측정 후 기입)*
 
 ### ④ 캐싱 + 관측성
-동일/유사 질의를 Caffeine 캐시([`QueryCache`](src/main/java/com/yeonwoo/ragdoc/cache/QueryCache.java))로 단락시켜 LLM 재호출을 없앤다. 성능은 Prometheus/Grafana로 기록.
-- 결과: 캐시 히트 시 응답 `___ → ___ ms`, LLM 호출 `___% 감소` *(측정 후 기입)*
+동일 질의를 Caffeine 캐시([`QueryCache`](src/main/java/com/yeonwoo/ragdoc/cache/QueryCache.java))로 단락시켜 임베딩·검색·LLM 호출을 통째로 건너뛴다. 캐시 히트/미스는 Micrometer로 `cache_gets_total{cache="query_cache"}` 지표를 내보내 Prometheus/Grafana로 관측한다.
+
+**측정 결과** (같은 질문 2회 호출):
+
+| | 응답시간(latencyMs) | LLM 호출 | cached |
+|---|---|---|---|
+| 1번째 (miss) | 8,139 ms | 1회 | false |
+| 2번째 (hit) | **0 ms** | **0회** | true |
+
+즉 반복 질의는 8초 LLM 호출을 **0ms·0회**로 줄인다(비용·부하 제거). 관측: `http://localhost:9090`(Prometheus)에서 `cache_gets_total{cache="query_cache"}` 조회, `http://localhost:3001`(Grafana)에서 대시보드로 확인.
 
 ---
 

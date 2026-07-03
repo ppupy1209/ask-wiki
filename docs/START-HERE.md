@@ -30,9 +30,9 @@
 - ✅ **Phase 1 — 실행 확인**: `docker compose up` → 문서 업로드/조회 동작 확인. (문서 올리면 Ollama가 임베딩해 MySQL 저장)
 - ✅ **Phase 2 — RAG 구현 (study ②)**: `rag/RagService.answer()` 완성. 질문→임베딩→검색→프롬프트→LLM→답변+근거. `/api/ask`가 근거 기반 답변 반환. 핵심 학습: **프롬프트 한 줄이 답을 좌우(환각 억제)**.
 - ✅ **Phase 3 — Virtual Threads 측정 (study ①)**: 실제 다운스트림 HTTP 호출(`/api/bench/downstream`→go-httpbin `/delay`) + k6로 A/B 측정. 결과 **처리량 948→2,394 req/s(2.5배), p99 839→219ms**(직접 실측). README 기입 완료. 스크립트 `bench/io-load.js`, 토글 `VTHREADS=true docker compose up -d --force-recreate app`.
-- ⬜ **Phase 3b — 남은 study 측정 (선택)** ← **다음 후보**
-    - ③ MySQL 검색 최적화: 현재 `SearchService`가 O(N) 전수 스캔(`// study #3` 지점) → 후보 축소/인메모리 인덱스로 개선 후 검색 응답 비교
-    - ④ 캐싱/관측: 같은 질문 2번째 호출 시 `cached:true` 응답속도 비교 + Grafana 대시보드 스크린샷
+- 🔄 **Phase 3b — 남은 study 측정**
+    - ✅ ④ 캐싱/관측: 같은 질문 2회 → **8,139ms→0ms, LLM 1→0회**. `cache_gets_total{cache="query_cache"}` 지표를 Micrometer→Prometheus/Grafana로 관측. (Grafana 스크린샷은 사용자 확인 단계)
+    - ⬜ ③ MySQL 검색 최적화 ← **다음 후보**: `SearchService` O(N) 전수 스캔(`// study #3`) → 후보 축소/인메모리 인덱스 후 검색 응답 비교
 - ⬜ **Phase 5 — 포트폴리오 통합 (Claude 담당)**: study 글 + 다이어그램을 포트폴리오 사이트(`web/`)에 반영
 
 > 이 로그를 매 Phase 끝날 때 갱신한다(체크박스 ✅). 새 PC/세션은 이 로그의 "지금 여기"부터 이어가면 된다.
