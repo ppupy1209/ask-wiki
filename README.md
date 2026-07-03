@@ -15,7 +15,7 @@
 - **Java 21 Virtual Threads**: 동시성 처리량을 부하 테스트로 측정
 - **Spring AI + 로컬 LLM(Ollama) 기반 RAG**: Java로 AI 파이프라인 구성
 - **MySQL 벡터 검색**: 데이터 증가에 따른 조회 성능 최적화
-- **Caffeine 캐시**: 반복 질의의 비용·지연 절감
+- **Redis 분산 캐시**: 반복 질의의 비용·지연 절감 (앱 재시작·다중 인스턴스에도 유지)
 - **Prometheus · Grafana · k6**: 부하를 걸고 시스템을 실시간으로 관측·기록
 
 즉 "돌아가기만 하는 것"이 목표가 아니라, **각 기술을 왜·언제 쓰는지 이해하고 어떤 수치로 개선되는지 스스로 측정해 기록**하는 것을 지향합니다. 아래 각 study는 그 실험 기록입니다.
@@ -46,7 +46,8 @@ flowchart LR
     DS --> E[EmbeddingClient +Caffeine]
     DS --> DB[(MySQL 8.4 document/chunk)]
 
-    A --> QC[QueryCache Caffeine]
+    A --> QC[QueryCache]
+    QC --> RD[(Redis)]
     A --> R[RagService]
     R --> E
     R --> S[SearchService cosine 검색]
@@ -70,6 +71,7 @@ flowchart LR
 - **Spring AI 1.0.9** (Ollama 임베딩·챗)
 - **MySQL 8.4** (Flyway 마이그레이션), 임베딩은 `JSON` 컬럼 저장 + 애플리케이션 코사인 검색
 - **Ollama** (로컬·무료 LLM): 임베딩 `nomic-embed-text`, 챗 `llama3.2:3b`
+- **Redis** (질의 응답 분산 캐시), **Caffeine** (임베딩 인스턴스 로컬 메모이제이션)
 - **관측성**: Micrometer · Prometheus · Grafana / **부하**: k6
 - **실행**: Docker Compose (앱 컴파일도 컨테이너의 Java 21이 담당하므로 호스트 JDK 불필요)
 
@@ -162,7 +164,7 @@ docker run --rm -i --network rag-doc-service_default -e BASE=http://app:8080 gra
 - 결과: N=___ 청크에서 검색 응답 `___ → ___ ms` *(측정 후 기입)*
 
 ### ④ 캐싱 + 관측성
-동일 질의를 Caffeine 캐시([`QueryCache`](src/main/java/com/yeonwoo/ragdoc/cache/QueryCache.java))로 단락시켜 임베딩·검색·LLM 호출을 통째로 건너뛴다. 캐시 히트/미스는 Micrometer로 `cache_gets_total{cache="query_cache"}` 지표를 내보내 Prometheus/Grafana로 관측한다.
+동일 질의를 **Redis 분산 캐시**([`QueryCache`](src/main/java/com/yeonwoo/ragdoc/cache/QueryCache.java))로 단락시켜 임베딩·검색·LLM 호출을 통째로 건너뛴다. 캐시 히트/미스는 Micrometer로 `cache_gets_total{cache="query_cache"}` 지표를 내보내 Prometheus/Grafana로 관측한다.
 
 **측정 결과** (같은 질문 2회 호출):
 
@@ -172,6 +174,8 @@ docker run --rm -i --network rag-doc-service_default -e BASE=http://app:8080 gra
 | 2번째 (hit) | **0 ms** | **0회** | true |
 
 즉 반복 질의는 8초 LLM 호출을 **0ms·0회**로 줄인다(비용·부하 제거).
+
+**왜 Caffeine이 아니라 Redis인가**: 인메모리 캐시는 앱을 재시작하면 사라지고 인스턴스마다 따로 논다. Redis는 외부 저장소라 재시작·다중 인스턴스에도 캐시가 유지·공유된다. 실제로 캐시된 질문을 남긴 채 앱을 재시작한 뒤 같은 질문을 하면 여전히 `cached:true`(약 25ms)로 응답한다.
 
 **관측성 대시보드** ([`rag-observability.json`](grafana/provisioning/dashboards/rag-observability.json))는 부하 걸린 시스템을 한 화면에서 관측한다: 처리량(req/s), 응답 p95/p99, **JVM 라이브 스레드 수**, 힙 메모리, CPU, 캐시 히트/미스 6개 패널. `http://localhost:3001` 의 "RAG 서비스 관측 대시보드"에서 확인한다. 부하 테스트(k6, `bench/io-load.js`)를 걸며 지켜보면 처리량이 치솟고 가상 스레드 ON/OFF에 따라 스레드 수 곡선이 달라지는 것을 실시간으로 볼 수 있어 study ①의 결과가 그래프로 재현된다. (p99 백분위는 `management.metrics.distribution.percentiles-histogram`로 히스토그램 지표를 켜서 계산)
 

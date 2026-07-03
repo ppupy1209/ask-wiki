@@ -24,6 +24,7 @@
 - MySQL **8.4 (LTS)** - 임베딩은 `JSON` 컬럼에 float 배열로 저장, 유사도는 **애플리케이션에서 계산**
   (community MySQL은 벡터 거리 함수가 없으므로 in-app cosine. study ③의 "최적화"는 후보 축소·정규화·인메모리 인덱스로 다룬다.)
 - Ollama - 임베딩 `nomic-embed-text`, 챗 `llama3.2:3b` (로컬·무료, compose가 자동 pull)
+- 캐시: **Redis**(질의 응답 분산 캐시, study ④), Caffeine(임베딩 인스턴스 로컬 메모이제이션)
 - 관측성: Micrometer → Prometheus → Grafana
 - 부하: k6
 

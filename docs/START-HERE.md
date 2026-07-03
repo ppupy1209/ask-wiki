@@ -31,7 +31,7 @@
 - ✅ **Phase 2 - RAG 구현 (study ②)**: `rag/RagService.answer()` 완성. 질문→임베딩→검색→프롬프트→LLM→답변+근거. `/api/ask`가 근거 기반 답변 반환. 핵심 학습: **프롬프트 한 줄이 답을 좌우(환각 억제)**.
 - ✅ **Phase 3 - Virtual Threads 측정 (study ①)**: 실제 다운스트림 HTTP 호출(`/api/bench/downstream`→go-httpbin `/delay`) + k6로 A/B 측정. 결과 **처리량 978→2,440 req/s(2.5배), p99 602→213ms, 부하중 JVM 스레드 OFF~350/ON~220**(직접 실측·Grafana 관찰). README 기입 완료. 스크립트 `bench/io-load.js`, 토글 `VTHREADS=true docker compose up -d --force-recreate app`.
 - 🔄 **Phase 3b - 남은 study 측정**
-    - ✅ ④ 캐싱/관측: 같은 질문 2회 → **8,139ms→0ms, LLM 1→0회**. + **관측성 대시보드** `grafana/provisioning/dashboards/rag-observability.json`(6패널: 처리량·p95/p99·JVM스레드·힙·CPU·캐시) - 부하 걸며 실시간 관측. Grafana `http://localhost:3001` → "RAG 서비스 관측 대시보드".
+    - ✅ ④ 캐싱/관측: **Redis 분산 캐시**(재시작·다중 인스턴스에도 유지). 같은 질문 2회 → **8,139ms→0ms, LLM 1→0회**. 재시작 후에도 `cached:true` 확인. + **관측성 대시보드** `grafana/provisioning/dashboards/rag-observability.json`(6패널: 처리량·p95/p99·JVM스레드·힙·CPU·캐시) - 부하 걸며 실시간 관측. Grafana `http://localhost:3001` → "RAG 서비스 관측 대시보드".
     - ⬜ ③ MySQL 검색 최적화 ← **다음 후보**: `SearchService` O(N) 전수 스캔(`// study #3`) → 후보 축소/인메모리 인덱스 후 검색 응답 비교
 - ⬜ **Phase 5 - 포트폴리오 통합 (Claude 담당)**: study 글 + 다이어그램을 포트폴리오 사이트(`web/`)에 반영
 
