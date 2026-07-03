@@ -22,15 +22,20 @@
 | ③ | 검색 최적화 | 문서가 많아져도 "비슷한 문서 찾기"를 빠르게 |
 | ④ | 캐싱 + 관측 | 같은 질문은 기억해서 빨리 답하고, 성능을 그래프로 기록 |
 
-## 3. 지금 상태 (2026-07 기준)
+## 3. 진행 로그 (Phase별) — 이어가는 기준점 ⭐
 
-- ✅ **골격 완성**: 서버가 뜨고, DB 연결·문서 저장·검색까지 동작 (Claude+Codex가 만듦)
-- ✅ **실행 검증됨**: `docker compose up` → 정상 기동 확인 완료
-- 🔨 **남은 2가지 = 학습자가 직접 구현** (이게 공부의 핵심):
-  1. `src/main/java/com/yeonwoo/ragdoc/rag/RagService.java` 의 `answer()` — study ② → 노트: `docs/LEARNING-rag.md`
-  2. Virtual Threads 켜고/끄고 부하 측정 — study ① → 노트: `docs/LEARNING-virtual-threads.md`
-- ⬜ 측정치를 `README.md`의 `___ → ___` 자리에 채우기
-- ⬜ (Claude 담당) 포트폴리오 사이트에 study 4건 글 + 다이어그램 통합
+전체 흐름: **Phase 1**(실행 확인) → **2**(RAG 구현) → **3**(Virtual Threads 측정) → **4**(숫자 정리) → **5**(포트폴리오 통합)
+
+- ✅ **Phase 0 — 골격**: Claude+Codex가 전체 스캐폴딩. Docker 빌드·기동·Flyway·health 검증 완료.
+- ✅ **Phase 1 — 실행 확인**: `docker compose up` → 문서 업로드/조회 동작 확인. (문서 올리면 Ollama가 임베딩해 MySQL 저장)
+- ✅ **Phase 2 — RAG 구현 (study ②)**: `rag/RagService.answer()` 완성. 질문→임베딩→검색→프롬프트→LLM→답변+근거. `/api/ask`가 근거 기반 답변 반환. 핵심 학습: **프롬프트 한 줄이 답을 좌우(환각 억제)**.
+- ⬜ **Phase 3 — Virtual Threads 측정 (study ①)** ← **지금 여기**
+    - `spring.threads.virtual.enabled` 토글 on/off로 부하(k6)를 걸어 처리량·p99 비교
+    - 노트: `docs/LEARNING-virtual-threads.md`, 부하 스크립트: `bench/ask-load.js`
+- ⬜ **Phase 4 — 숫자 정리**: 위 측정치를 `README.md`의 `___ → ___` 자리에 기입
+- ⬜ **Phase 5 — 포트폴리오 통합 (Claude 담당)**: study 4건 글 + 다이어그램을 포트폴리오 사이트에 반영
+
+> 이 로그를 매 Phase 끝날 때 갱신한다(체크박스 ✅). 새 PC/세션은 이 로그의 "지금 여기"부터 이어가면 된다.
 
 ## 4. 실행 방법 (필요한 건 Docker 뿐, 자바 설치 불필요)
 
