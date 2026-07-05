@@ -33,7 +33,7 @@
 - ✅ **Phase 3b - 남은 study 측정 완료 (③④)**
     - ✅ ④ 캐싱/관측: **Redis 분산 캐시**(재시작·다중 인스턴스에도 유지). 같은 질문 2회 → **8,139ms→0ms, LLM 1→0회**. 재시작 후에도 `cached:true` 확인. + **관측성 대시보드** `grafana/provisioning/dashboards/rag-observability.json`(6패널: 처리량·p95/p99·JVM스레드·힙·CPU·캐시) - 부하 걸며 실시간 관측. Grafana `http://localhost:3001` → "RAG 서비스 관측 대시보드".
     - ✅ ③ MySQL 검색 최적화: **인메모리 벡터 인덱스**(`InMemoryVectorIndex`)로 전환. 20k 청크 검색 **6,458ms→25ms(약 256배)**. RagService·/api/ask도 인덱스 사용. bench `/api/bench/search?mode=dbscan|memory`.
-- ✅ **Phase A - 제품 전환 1차 (2026-07-05)**: `rac-doc` → **`ask-wiki`** 리네임(GitHub 레포·로컬 디렉터리·Java 패키지 `com.yeonwoo.askwiki`·앱/지표/대시보드 명). **파일 업로드**(`POST /api/documents/upload`, md·txt·pdf — PDFBox) + **웹 챗 UI**(`/`, 문서 등록·질문·출처 표시) 추가. ⚠️ 컴파일·단위 테스트만 검증됨(작업 머신에 Docker 없음) → **다음 Docker 머신에서 러닝 테스트 필요**: UI에서 md/pdf 업로드 → 질문 → 출처 확인. ⚠️ 디렉터리 리네임으로 compose 프로젝트명이 바뀌어 **첫 `docker compose up` 시 볼륨이 새로 생성**됨(모델 재-pull, 기존 문서 데이터는 새로 넣기).
+- ✅ **Phase A - 제품 전환 1차 (2026-07-05)**: `rac-doc` → **`ask-wiki`** 리네임(GitHub 레포·로컬 디렉터리·Java 패키지 `com.yeonwoo.askwiki`·앱/지표/대시보드 명). **파일 업로드**(`POST /api/documents/upload`, md·txt·pdf — PDFBox) + **웹 챗 UI**(`/`, 문서 등록·질문·출처 표시) 추가. ✅ **러닝 테스트 통과** (맥, 전체 스택): md 업로드→임베딩·저장, 미지원 확장자 400, 질문→정답+출처(1순위 정확, score 0.83, 6.3s), 동일 질문 캐시 히트(2ms), 문서 밖 질문 "모르겠습니다"(환각 억제). pdf 업로드는 실파일 미검증. ⚠️ 디렉터리 리네임으로 볼륨이 새로 생성됨(모델 재-pull 완료). 포트 충돌 시 `.env` 사용(로컬은 MYSQL_PORT=13306, GRAFANA_PORT=3001 사용 중).
 - ⬜ **Phase B - 운영 수준 딥다이브 (연우님 직접, 딱 2주제)**: ①증분 인덱싱·정합성 ②답변 품질 평가 하네스. 계획은 **`docs/ROADMAP.md`** 참고.
 - ⬜ **Phase C - 포트폴리오 통합**: study 글 + 다이어그램을 포트폴리오 사이트(`yeonwoo-dev/web/`)에 반영. 체크리스트는 `docs/ROADMAP.md` 하단.
 
