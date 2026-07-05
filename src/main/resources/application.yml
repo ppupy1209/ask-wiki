@@ -1,6 +1,10 @@
 spring:
   application:
-    name: rag-doc-service
+    name: ask-wiki
+  servlet:
+    multipart:
+      max-file-size: 20MB      # PDF 업로드 대비 (기본 1MB)
+      max-request-size: 20MB
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/ragdoc}
     username: ${DB_USERNAME:ragdoc}
@@ -38,7 +42,7 @@ management:
       show-details: always
   metrics:
     tags:
-      application: rag-doc-service
+      application: ask-wiki
     distribution:
       percentiles-histogram:
         http.server.requests: true   # p99 등 히스토그램 지표(_bucket) 생성 → Grafana에서 백분위 계산

@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ask Wiki — 사내 문서 Q&A</title>
+<style>
+  :root {
+    --bg: #f7f8fa; --surface: #ffffff; --border: #e4e7ec;
+    --text: #1a1f2b; --muted: #6b7280; --accent: #2563eb; --accent-soft: #eff4ff;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column;
+  }
+  header {
+    padding: 14px 22px; background: var(--surface); border-bottom: 1px solid var(--border);
+    display: flex; align-items: baseline; gap: 10px;
+  }
+  header h1 { font-size: 17px; }
+  header span { font-size: 12.5px; color: var(--muted); }
+  main { flex: 1; display: flex; min-height: 0; }
+
+  /* 문서 패널 */
+  aside {
+    width: 320px; flex-shrink: 0; border-right: 1px solid var(--border); background: var(--surface);
+    display: flex; flex-direction: column; padding: 16px; gap: 14px; overflow-y: auto;
+  }
+  aside h2 { font-size: 13px; color: var(--muted); font-weight: 600; }
+  .upload-box { display: flex; flex-direction: column; gap: 8px; }
+  .upload-box input[type="file"] { font-size: 12.5px; }
+  .doc-list { display: flex; flex-direction: column; gap: 6px; }
+  .doc-item {
+    display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+    border: 1px solid var(--border); border-radius: 8px; font-size: 13px;
+  }
+  .doc-item .meta { color: var(--muted); font-size: 11.5px; margin-left: auto; white-space: nowrap; }
+  .doc-item button {
+    border: none; background: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 2px 4px;
+  }
+  .doc-item button:hover { color: #dc2626; }
+  .empty { color: var(--muted); font-size: 12.5px; }
+  details summary { font-size: 12.5px; color: var(--muted); cursor: pointer; }
+  details form { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  details input, details textarea {
+    border: 1px solid var(--border); border-radius: 6px; padding: 7px 9px; font-size: 13px; font-family: inherit;
+  }
+  details textarea { min-height: 90px; resize: vertical; }
+
+  /* 채팅 */
+  .chat { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .thread { flex: 1; overflow-y: auto; padding: 22px; display: flex; flex-direction: column; gap: 14px; }
+  .msg { max-width: 720px; padding: 11px 14px; border-radius: 12px; font-size: 14px; line-height: 1.65; }
+  .msg.q { align-self: flex-end; background: var(--accent); color: #fff; white-space: pre-wrap; }
+  .msg.a { align-self: flex-start; background: var(--surface); border: 1px solid var(--border); white-space: pre-wrap; }
+  .msg.a.error { border-color: #fca5a5; background: #fef2f2; }
+  .msg .info { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; font-size: 11.5px; color: var(--muted); }
+  .badge {
+    background: var(--accent-soft); color: var(--accent); border-radius: 20px; padding: 2px 9px; white-space: nowrap;
+  }
+  .thinking { color: var(--muted); font-style: italic; }
+  .hint { color: var(--muted); font-size: 13px; text-align: center; margin-top: 40px; line-height: 1.8; }
+
+  .ask-bar { padding: 14px 22px; border-top: 1px solid var(--border); background: var(--surface); display: flex; gap: 8px; }
+  .ask-bar input {
+    flex: 1; border: 1px solid var(--border); border-radius: 10px; padding: 11px 14px; font-size: 14px; font-family: inherit;
+  }
+  .ask-bar input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  button.primary {
+    border: none; border-radius: 10px; background: var(--accent); color: #fff;
+    padding: 0 18px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+  button.primary:disabled { opacity: 0.5; cursor: default; }
+
+  @media (max-width: 760px) {
+    main { flex-direction: column; }
+    aside { width: 100%; max-height: 40vh; border-right: none; border-bottom: 1px solid var(--border); }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Ask Wiki</h1>
+  <span>사내 문서를 근거로 답하는 위키 챗봇</span>
+</header>
+
+<main>
+  <aside>
+    <div class="upload-box">
+      <h2>문서 추가 (md · txt · pdf)</h2>
+      <input id="file-input" type="file" accept=".md,.txt,.pdf" />
+      <details>
+        <summary>또는 텍스트로 직접 등록</summary>
+        <form id="paste-form">
+          <input id="paste-title" placeholder="제목" required />
+          <textarea id="paste-content" placeholder="문서 내용" required></textarea>
+          <button class="primary" type="submit">등록</button>
+        </form>
+      </details>
+    </div>
+    <div>
+      <h2>등록된 문서</h2>
+      <div id="doc-list" class="doc-list"><span class="empty">불러오는 중…</span></div>
+    </div>
+  </aside>
+
+  <section class="chat">
+    <div id="thread" class="thread">
+      <p class="hint">
+        왼쪽에서 문서를 등록한 뒤, 그 문서에 대해 질문해 보세요.<br />
+        답변에는 근거 문서(출처)와 응답 시간이 함께 표시됩니다.
+      </p>
+    </div>
+    <form id="ask-form" class="ask-bar">
+      <input id="question" placeholder="예: 연차는 며칠 나오나요?" autocomplete="off" required />
+      <button id="ask-btn" class="primary" type="submit">질문</button>
+    </form>
+  </section>
+</main>
+
+<script>
+  const threadEl = document.getElementById("thread");
+  const docListEl = document.getElementById("doc-list");
+  const askForm = document.getElementById("ask-form");
+  const askBtn = document.getElementById("ask-btn");
+  const questionEl = document.getElementById("question");
+  const fileInput = document.getElementById("file-input");
+  const pasteForm = document.getElementById("paste-form");
+
+  async function readError(res) {
+    try { return (await res.json()).message || `요청 실패 (${res.status})`; }
+    catch { return `요청 실패 (${res.status})`; }
+  }
+
+  // ---- 문서 목록 ----
+  async function loadDocuments() {
+    const res = await fetch("/api/documents");
+    const docs = await res.json();
+    docListEl.innerHTML = "";
+    if (docs.length === 0) {
+      docListEl.innerHTML = '<span class="empty">아직 등록된 문서가 없습니다.</span>';
+      return;
+    }
+    for (const doc of docs) {
+      const item = document.createElement("div");
+      item.className = "doc-item";
+      const name = document.createElement("span");
+      name.textContent = doc.title;
+      const meta = document.createElement("span");
+      meta.className = "meta";
+      meta.textContent = `청크 ${doc.chunkCount}`;
+      const del = document.createElement("button");
+      del.textContent = "✕";
+      del.title = "삭제";
+      del.onclick = async () => {
+        if (!confirm(`"${doc.title}" 문서를 삭제할까요?`)) return;
+        await fetch(`/api/documents/${doc.id}`, { method: "DELETE" });
+        loadDocuments();
+      };
+      item.append(name, meta, del);
+      docListEl.appendChild(item);
+    }
+  }
+
+  // ---- 파일 업로드 ----
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const body = new FormData();
+    body.append("file", file);
+    fileInput.disabled = true;
+    try {
+      const res = await fetch("/api/documents/upload", { method: "POST", body });
+      if (!res.ok) { alert(await readError(res)); return; }
+      const created = await res.json();
+      alert(`"${created.title}" 등록 완료 (청크 ${created.chunkCount}개)`);
+      loadDocuments();
+    } finally {
+      fileInput.disabled = false;
+      fileInput.value = "";
+    }
+  });
+
+  // ---- 텍스트 등록 ----
+  pasteForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const res = await fetch("/api/documents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: document.getElementById("paste-title").value,
+        content: document.getElementById("paste-content").value,
+      }),
+    });
+    if (!res.ok) { alert(await readError(res)); return; }
+    pasteForm.reset();
+    loadDocuments();
+  });
+
+  // ---- 질문 ----
+  function addMessage(cls, text) {
+    const el = document.createElement("div");
+    el.className = `msg ${cls}`;
+    el.textContent = text;
+    threadEl.appendChild(el);
+    threadEl.scrollTop = threadEl.scrollHeight;
+    return el;
+  }
+
+  askForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const question = questionEl.value.trim();
+    if (!question) return;
+    document.querySelector(".hint")?.remove();
+    addMessage("q", question);
+    questionEl.value = "";
+    askBtn.disabled = true;
+    const pending = addMessage("a thinking", "문서를 찾고 답변을 만드는 중…");
+
+    try {
+      const res = await fetch("/api/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question }),
+      });
+      const data = await res.json();
+      pending.classList.remove("thinking");
+      if (!res.ok) {
+        pending.classList.add("error");
+        pending.textContent = data.answer || data.message || `요청 실패 (${res.status})`;
+        return;
+      }
+      pending.textContent = data.answer;
+
+      const info = document.createElement("div");
+      info.className = "info";
+      for (const src of data.sources || []) {
+        const chip = document.createElement("span");
+        chip.className = "badge";
+        chip.textContent = `${src.title} #${src.chunkSeq} (${src.score.toFixed(2)})`;
+        info.appendChild(chip);
+      }
+      const timing = document.createElement("span");
+      timing.textContent = `${data.latencyMs}ms${data.cached ? " · 캐시 응답" : ""}`;
+      info.appendChild(timing);
+      pending.appendChild(info);
+    } catch (err) {
+      pending.classList.remove("thinking");
+      pending.classList.add("error");
+      pending.textContent = "서버에 연결하지 못했습니다.";
+    } finally {
+      askBtn.disabled = false;
+      questionEl.focus();
+      threadEl.scrollTop = threadEl.scrollHeight;
+    }
+  });
+
+  loadDocuments();
+</script>
+</body>
+</html>

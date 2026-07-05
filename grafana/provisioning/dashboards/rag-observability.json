@@ -2,7 +2,7 @@
   "id": null,
   "uid": "rag-obs",
   "title": "RAG 서비스 관측 대시보드",
-  "tags": ["rag-doc-service"],
+  "tags": ["ask-wiki"],
   "timezone": "",
   "schemaVersion": 39,
   "version": 1,

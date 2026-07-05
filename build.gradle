@@ -35,6 +35,7 @@ dependencies {
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-mysql'
     implementation 'org.springframework.ai:spring-ai-starter-model-ollama'
+    implementation 'org.apache.pdfbox:pdfbox:3.0.3'
     implementation 'com.github.ben-manes.caffeine:caffeine'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'io.micrometer:micrometer-registry-prometheus'

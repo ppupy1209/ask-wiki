@@ -4,7 +4,7 @@
 // 가상 스레드를 껐다(false) 켰다(true) 하며 두 번 돌려 처리량·p99를 비교한다.
 //
 // 실행 (k6 설치 불필요 — Docker로):
-//   docker run --rm -i --network rag-doc-service_default -e BASE=http://app:8080 grafana/k6 run - < bench/io-load.js
+//   docker run --rm -i --network ask-wiki_default -e BASE=http://app:8080 grafana/k6 run - < bench/io-load.js
 //
 // 조절 가능한 환경변수: VUS(동시 사용자), DURATION, DELAY(엔드포인트 대기 ms), BASE(대상 주소)
 import http from 'k6/http';

@@ -4,7 +4,7 @@
 // 가상 스레드를 껐다(false) 켰다(true) 하며 두 번 돌려 처리량·p99를 비교한다.
 //
 // 실행 (k6 설치 불필요, Docker):
-//   docker run --rm -i --network rag-doc-service_default -e BASE=http://app:8080 grafana/k6 run - < bench/orchestrate-load.js
+//   docker run --rm -i --network ask-wiki_default -e BASE=http://app:8080 grafana/k6 run - < bench/orchestrate-load.js
 import http from 'k6/http';
 import { check } from 'k6';
 
