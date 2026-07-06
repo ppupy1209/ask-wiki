@@ -90,6 +90,25 @@
 > ② Testcontainers "Could not find a valid Docker environment" + Status 400(빈 Info 응답): docker-java가 구식 `/v1.32` API로 호출하는데 Docker Engine 29(최소 API 1.40)가 400으로 거부. 네임드 파이프에 원시 HTTP를 보내 진단(`/v1.32/info`→400, `/v1.44/info`→200). 해결: Testcontainers 1.21.3 오버라이드 + 테스트 JVM에 `api.version=1.44` 시스템 프로퍼티(build.gradle에 커밋 — 다른 PC에도 적용) + 이 PC의 `~/.testcontainers.properties`에 `docker.host=npipe:////./pipe/dockerDesktopLinuxEngine`(desktop-linux 컨텍스트와 일치, 머신 로컬 설정).
 > ③ IntelliJ에서 이 테스트를 돌릴 땐 Run tests using: **Gradle**(기본값)이어야 ②의 시스템 프로퍼티가 적용됨.
 
+### Step 2 완료 — 동기화 방식 결정 (2026-07-06)
+
+- [x] 선택지 A~E 비교·결정: **C(Outbox+relay) 메인, B는 비교·E는 보정 관점** — 근거는 design-notes.md §3 "결정 — 동기화 방식".
+- [x] 부수 결정: 파생 데이터를 인메모리에 유지(공유 벡터 저장소는 C1로 이월), 삭제·재빌드(세대 스왑)는 별도 축으로 분리.
+
+### Step 3 세부 진행 — Outbox + relay 구현 (step-by-step, 연우님 직접 타이핑)
+
+> **핵심 아이디어**: `create()`가 `vectorIndex.add()`(트랜잭션 밖 부수효과)를 하는 대신, **같은 트랜잭션 안에서 `index_outbox` 테이블에 이벤트를 INSERT**한다.
+> 롤백되면 이벤트도 함께 롤백 → 유령 원천 차단. 별도 relay(폴링 스케줄러)가 PENDING 이벤트를 읽어 인덱스에 반영하고 PROCESSED로 마킹. 재처리에 안전하도록 멱등.
+> **create/add 경로(유령 문제)를 먼저**, 삭제(세대 스왑)는 3 후반.
+
+- [ ] 3-1: V2 Flyway 마이그레이션 — `index_outbox` 테이블 (status 인덱스 포함)
+- [ ] 3-2: `IndexOutboxEvent` 엔티티 + `IndexOutboxRepository` (PENDING 조회 파생 쿼리)
+- [ ] 3-3: `create()` 수정 — `vectorIndex.add()` 제거, 같은 트랜잭션에서 outbox INSERT. → `GhostIndexTest` **초록 전환**(롤백 시 이벤트도 롤백돼 인덱스 0) + 신규 "커밋 후엔 이벤트가 PENDING으로 남는다" 단언
+- [ ] 3-4: relay — `@Scheduled` 폴링, PENDING 읽어 인덱스 반영 후 PROCESSED. 멱등(이미 인덱스에 있으면 skip 또는 재적용 안전)
+- [ ] 3-5: 테스트 — ① 해피패스(커밋 후 relay가 결국 반영 = eventual consistency) ② 멱등(같은 이벤트 2회 처리해도 중복 없음) ③ relay-kill(반영 전 크래시→재기동 시 유실 0)
+- [ ] 3-6: 삭제 경로 — 세대 인덱스 스왑(AtomicReference), 재빌드 중 검색 가용성 확인
+- [ ] 3-7: 측정 — 유령 N→0 확정, 업로드→검색 반영 지연 평균/최대 ms(폴링 주기 관계)
+
 ### 측정할 숫자 (before → after)
 
 - 롤백 시나리오에서 유령 인덱스 엔트리: **N건 → 0건**

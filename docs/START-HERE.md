@@ -39,7 +39,7 @@
     - ✅ Step 1: 유령 인덱스 재현 테스트(`GhostIndexTest`) — **빨간 불 재현 성공(2026-07-06): 롤백 후 유령 엔트리 2건 실측, DB는 0건.** 작성은 Codex CLI 위임, 실행·테스트 인프라 트러블슈팅(Docker Engine 29의 구식 API 400 거부 진단)은 Claude. 상세·재현 방법: ROADMAP "Step 1 세부 진행" + design-notes.md §3.
         - 2026-07-06 윈도우 PC에서 세션 재개. 작업 트리에 테스트 파일 없음 → Step 1을 여기서 진행. 환경 정리: 로컬 브랜치 `master`→`main` 정렬(업스트림 origin/main), 커밋 신원 레포 로컬 설정(§6), 네이티브 mysqld·redis와 포트 충돌 → `.env`(MYSQL_PORT=13306, REDIS_HOST_PORT=16379) 생성, 깨진 `core.sshCommand` 제거, 실수로 중첩 클론된 `ask-wiki/` 폴더 삭제. ⚠️ 이 PC의 SSH 키 2개 모두 GitHub 미등록 상태라 **푸시 보류 중**(`~/.ssh/id_ed25519_github_personal.pub`를 GitHub Settings → SSH keys에 등록하면 해결).
         - 2026-07-06 결정: 재현 테스트 DB는 **Testcontainers**(테스트가 전용 MySQL 8.4 컨테이너를 직접 기동 — 빈 DB라 절대값 단언 가능, 호스트 포트 충돌 무관, 추후 CI 편입 가능). compose MySQL 재사용안은 dev 데이터 오염(델타 단언 강제)·포트 오버라이드 의존·compose 기동 전제 때문에 기각.
-        - **지금 여기 (2026-07-06)**: Step 1 완료(빨간 불·유령 2건 실측). 다음은 **Step 2 — 설계 선택지 A~E 비교·결정** (ROADMAP의 표 기준, 연우님 주도 논의) → 결정과 근거를 design-notes.md에 기록 후 Step 3 구현으로.
+        - **지금 여기 (2026-07-06)**: Step 1(유령 2건 재현)·Step 2(동기화 방식 결정: **C Outbox+relay 메인**, 근거 design-notes §3) 완료. 다음은 **Step 3 — Outbox+relay 구현**, 세부 마이크로 스텝 3-1~3-7은 ROADMAP "Step 3 세부 진행" 참조. 3-1(V2 마이그레이션)부터 연우님 직접 타이핑.
     - ⬜ Step 2: 설계 선택지 A~E 비교·결정 (design-notes.md에 기록)
     - ⬜ Step 3~: 선택한 구조 구현 → 세대 스왑 → 장애 검증·측정
 - ⬜ **Phase B2 - 답변 품질 평가 하네스**: 계획은 **`docs/ROADMAP.md`** 참고. **진행은 §7 작업 방식(step-by-step) 필수.**
