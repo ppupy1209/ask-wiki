@@ -54,7 +54,9 @@ study ③에서 다룸. 측정: 20,002 청크에서 검색 6,458ms(DB 전수 스
 - 측정 환경: 윈도우 11, Docker Desktop(Engine 29.6.1), Temurin 21, Spring Boot 3.3.5, Testcontainers 1.21.3.
   재현: `./gradlew test --tests "*GhostIndexTest"` (Docker 필요).
 
-### 부수 수확 — "CLI는 되는데 SDK만 안 될 때" 진단기 (글감)
+### 개념 정리 — 인덱스는 캐시인가? (2026-07-06 논의)
+- `InMemoryVectorIndex`는 캐시라기보다 **파생 데이터(구체화 뷰)**: 캐시는 자주 쓰는 것만 부분 보관 + key 조회 + miss 시 원본 폴백으로 자기 수렴하지만, 이 인덱스는 전량 보유 + 최근접 탐색 + **miss 개념이 없다**. miss가 없으니 어긋나도 스스로 교정될 계기가 없고, 그래서 명시적 동기화(B1)가 필요하다. stale 캐시는 TTL로 죽지만 유령 인덱스는 rebuild 전까지 영생 — B1이 캐시 문제보다 어려운 이유.
+- 멀티 인스턴스 관점: 지금 구조는 A 인스턴스에서 등록해도 B·C 인스턴스 인덱스에 알릴 방법이 없다 — 즉 **롤백 없이 평상시에도 정합성이 깨진다**. B1에서 만드는 동기화 구조는 공유 벡터 저장소(pgvector·Qdrant 등)로 가도 "DB 커밋 ↔ 벡터 저장소 반영" 문제로 그대로 이식된다(네트워크 너머라 오히려 더 어려움) — 이 딥다이브가 장난감 문제가 아닌 근거.
 Testcontainers가 "Could not find a valid Docker environment"(Status 400, 빈 Info)로 실패했는데 docker CLI는 정상.
 네임드 파이프에 원시 HTTP를 직접 보내 계층을 벗겨보니 `/v1.32/info`→400, `/v1.44/info`→200 —
 docker-java의 구식 기본 API 버전(1.32)을 Docker Engine 29(최소 1.40)가 거부하는 것이 원인이었다.
