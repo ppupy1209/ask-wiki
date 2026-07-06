@@ -127,6 +127,7 @@
 - **B3** SSE 토큰 스트리밍 — 8~15초 응답의 체감 개선, p95 first-token 측정 (chipthrone SSE 경험 재활용)
 - **B4** 장애 격리 — LLM 타임아웃·동시 호출 세마포어·degraded 폴백(검색 결과만 반환)·k6 부하 중 Ollama kill 실험
 - **B5** 하이브리드 검색 — MySQL fulltext + 벡터 RRF 결합 (반드시 B2 하네스로 개선 증명)
+- **B6** 공유 벡터 저장소 이행 (pgvector·Qdrant 등) — 트리거: 멀티 인스턴스 실배포 / 메모리 초과 / 실시간 갱신 증가. B1의 동기화 패턴 이식 검증이 핵심 (왜 지금 안 쓰는지는 design-notes §3 결정 기록 참조)
 - 운영 배포 — EC2 1GB에서 Ollama 불가 → "로컬 Ollama ↔ 저비용 API" 추상화 스위치 설계
 - compose 잔여 리네임 — DB명/계정 `ragdoc`은 볼륨 호환 위해 유지 중. 갈아탈 때 볼륨 재생성 필요
 
