@@ -39,7 +39,7 @@
     - 🔄 Step 1: 유령 인덱스 재현 테스트(`GhostIndexTest`) — 연우님 직접 작성 중. 기대: 지금 구조에서는 **빨간 불**(롤백 후에도 인덱스에 청크가 남음).
         - 2026-07-06 윈도우 PC에서 세션 재개. 작업 트리에 테스트 파일 없음 → Step 1을 여기서 진행. 환경 정리: 로컬 브랜치 `master`→`main` 정렬(업스트림 origin/main), 커밋 신원 레포 로컬 설정(§6), 네이티브 mysqld·redis와 포트 충돌 → `.env`(MYSQL_PORT=13306, REDIS_HOST_PORT=16379) 생성, 깨진 `core.sshCommand` 제거, 실수로 중첩 클론된 `ask-wiki/` 폴더 삭제. ⚠️ 이 PC의 SSH 키 2개 모두 GitHub 미등록 상태라 **푸시 보류 중**(`~/.ssh/id_ed25519_github_personal.pub`를 GitHub Settings → SSH keys에 등록하면 해결).
         - 2026-07-06 결정: 재현 테스트 DB는 **Testcontainers**(테스트가 전용 MySQL 8.4 컨테이너를 직접 기동 — 빈 DB라 절대값 단언 가능, 호스트 포트 충돌 무관, 추후 CI 편입 가능). compose MySQL 재사용안은 dev 데이터 오염(델타 단언 강제)·포트 오버라이드 의존·compose 기동 전제 때문에 기각.
-        - **지금 여기 (2026-07-06)**: 마이크로 스텝 1-1까지 완료(Testcontainers 의존성 추가·Gradle sync 성공). 다음은 **1-2 테스트 골격**. 스텝 체크리스트와 재현 시나리오 스펙은 `docs/ROADMAP.md` B1의 **"Step 1 세부 진행"** 참조 — 새 세션은 거기서 이어가면 된다.
+        - **지금 여기 (2026-07-06)**: 마이크로 스텝 1-1까지 완료(Testcontainers 의존성 추가·Gradle sync 성공). 1-2 골격·1-3 재현 본문의 **작성·실행은 연우님 결정으로 Codex CLI에 위임**(스펙: ROADMAP "Step 1 세부 진행") — 결과 검수 후 여기 기록. 스텝 체크리스트와 재현 시나리오 스펙은 `docs/ROADMAP.md` B1의 **"Step 1 세부 진행"** 참조 — 새 세션은 거기서 이어가면 된다.
     - ⬜ Step 2: 설계 선택지 A~E 비교·결정 (design-notes.md에 기록)
     - ⬜ Step 3~: 선택한 구조 구현 → 세대 스왑 → 장애 검증·측정
 - ⬜ **Phase B2 - 답변 품질 평가 하네스**: 계획은 **`docs/ROADMAP.md`** 참고. **진행은 §7 작업 방식(step-by-step) 필수.**
