@@ -19,7 +19,8 @@ import java.time.LocalDateTime;
 public class IndexOutboxEvent {
 
     public enum EventType {
-        CHUNK_ADDED
+        CHUNK_ADDED,
+        DOCUMENT_DELETED
     }
 
     public enum Status {
@@ -36,7 +37,7 @@ public class IndexOutboxEvent {
     @Column(name = "event_type", nullable = false, length = 32)
     private EventType eventType;
 
-    @Column(name = "chunk_id", nullable = false)
+    @Column(name = "chunk_id", nullable = true)
     private Long chunkId;
 
     @Column(name = "document_id", nullable = false)

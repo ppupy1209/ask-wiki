@@ -1,0 +1,1 @@
+ALTER TABLE index_outbox MODIFY COLUMN chunk_id BIGINT NULL;

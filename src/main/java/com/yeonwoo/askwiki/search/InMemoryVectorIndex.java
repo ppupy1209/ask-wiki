@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -38,7 +39,8 @@ public class InMemoryVectorIndex {
     private final DocumentRepository documentRepository;
     private final EmbeddingCodec embeddingCodec;
 
-    private volatile List<Entry> entries = new ArrayList<>();
+    private final AtomicReference<List<Entry>> entriesRef =
+            new AtomicReference<>(new ArrayList<>());
 
     public InMemoryVectorIndex(ChunkRepository chunkRepository,
                                DocumentRepository documentRepository,
@@ -55,28 +57,37 @@ public class InMemoryVectorIndex {
         for (Chunk c : chunkRepository.findAllByOrderByIdAsc()) {
             next.add(toEntry(c));
         }
-        this.entries = next;
+        entriesRef.set(next);
         return next.size();
     }
 
     /** 문서 생성 시 새 청크를 증분 추가(전체 재빌드 없이). */
     public void add(Chunk chunk) {
         // 재처리/재시작-rebuild 중복 방지.
-        if (entries.stream().anyMatch(entry -> entry.chunkId().equals(chunk.getId()))) {
-            return;
-        }
-        List<Entry> next = new ArrayList<>(entries);
-        next.add(toEntry(chunk));
-        this.entries = next;
+        entriesRef.updateAndGet(cur -> {
+            if (cur.stream().anyMatch(entry -> entry.chunkId().equals(chunk.getId()))) {
+                return cur;
+            }
+            List<Entry> next = new ArrayList<>(cur);
+            next.add(toEntry(chunk));
+            return next;
+        });
+    }
+
+    public void removeDocument(Long documentId) {
+        // Idempotently drops all chunks for the deleted document.
+        entriesRef.updateAndGet(cur -> cur.stream()
+                .filter(entry -> !entry.documentId().equals(documentId))
+                .collect(Collectors.toList()));
     }
 
     public int size() {
-        return entries.size();
+        return entriesRef.get().size();
     }
 
     public List<ChunkMatch> search(float[] query, int topK) {
         float[] q = normalize(query);
-        List<Entry> snapshot = entries;
+        List<Entry> snapshot = entriesRef.get();
 
         List<Scored> top = snapshot.stream()
                 .map(e -> new Scored(e, dot(q, e.vector())))

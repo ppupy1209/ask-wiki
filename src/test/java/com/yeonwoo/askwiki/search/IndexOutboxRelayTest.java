@@ -1,6 +1,7 @@
 package com.yeonwoo.askwiki.search;
 
 import com.yeonwoo.askwiki.common.CreateDocumentRequest;
+import com.yeonwoo.askwiki.common.CreateDocumentResponse;
 import com.yeonwoo.askwiki.document.ChunkRepository;
 import com.yeonwoo.askwiki.document.Chunker;
 import com.yeonwoo.askwiki.document.DocumentRepository;
@@ -113,6 +114,57 @@ class IndexOutboxRelayTest {
         assertEquals(3, outboxRepository.findByStatusOrderByIdAsc(
                 IndexOutboxEvent.Status.PROCESSED
         ).size());
+    }
+
+    @Test
+    void reflectsDeletionAfterRelayRuns() {
+        String content = threeChunkContent();
+        assertEquals(3, chunker.split(content).size());
+
+        when(embeddingClient.embed(anyString()))
+                .thenReturn(new float[]{1.0f, 0.0f})
+                .thenReturn(new float[]{0.0f, 1.0f})
+                .thenReturn(new float[]{1.0f, 1.0f});
+
+        Long docId = documentService.create(new CreateDocumentRequest("to delete", content)).id();
+
+        relay.processPendingEvents();
+        assertEquals(3, vectorIndex.size());
+
+        documentService.delete(docId);
+        assertEquals(3, vectorIndex.size());
+
+        relay.processPendingEvents();
+
+        assertEquals(0, vectorIndex.size());
+        assertEquals(IndexOutboxEvent.Status.PROCESSED, outboxRepository.findAll().stream()
+                .filter(event -> event.getEventType() == IndexOutboxEvent.EventType.DOCUMENT_DELETED)
+                .findFirst()
+                .orElseThrow()
+                .getStatus());
+
+        relay.processPendingEvents();
+        assertEquals(0, vectorIndex.size());
+    }
+
+    @Test
+    void removeDocumentOnlyAffectsTargetDocument() {
+        String content = threeChunkContent();
+        assertEquals(3, chunker.split(content).size());
+
+        when(embeddingClient.embed(anyString())).thenReturn(new float[]{1.0f, 0.0f});
+
+        CreateDocumentResponse first = documentService.create(new CreateDocumentRequest("first", content));
+        Long secondDocId = documentService.create(new CreateDocumentRequest("second", content)).id();
+
+        relay.processPendingEvents();
+        assertEquals(6, vectorIndex.size());
+
+        documentService.delete(first.id());
+        relay.processPendingEvents();
+
+        assertEquals(3, vectorIndex.size());
+        assertEquals(3, chunkRepository.countByDocumentId(secondDocId));
     }
 
     private void createThreeChunkDocument() {

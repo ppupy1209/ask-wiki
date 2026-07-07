@@ -7,7 +7,6 @@ import com.yeonwoo.askwiki.embedding.EmbeddingClient;
 import com.yeonwoo.askwiki.embedding.EmbeddingCodec;
 import com.yeonwoo.askwiki.search.IndexOutboxEvent;
 import com.yeonwoo.askwiki.search.IndexOutboxRepository;
-import com.yeonwoo.askwiki.search.InMemoryVectorIndex;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,7 +21,6 @@ public class DocumentService {
     private final Chunker chunker;
     private final EmbeddingClient embeddingClient;
     private final EmbeddingCodec embeddingCodec;
-    private final InMemoryVectorIndex vectorIndex;
     private final IndexOutboxRepository outboxRepository;
 
     public DocumentService(
@@ -31,7 +29,6 @@ public class DocumentService {
             Chunker chunker,
             EmbeddingClient embeddingClient,
             EmbeddingCodec embeddingCodec,
-            InMemoryVectorIndex vectorIndex,
             IndexOutboxRepository outboxRepository
     ) {
         this.documentRepository = documentRepository;
@@ -39,7 +36,6 @@ public class DocumentService {
         this.chunker = chunker;
         this.embeddingClient = embeddingClient;
         this.embeddingCodec = embeddingCodec;
-        this.vectorIndex = vectorIndex;
         this.outboxRepository = outboxRepository;
     }
 
@@ -84,7 +80,11 @@ public class DocumentService {
     @Transactional
     public void delete(Long id) {
         documentRepository.deleteById(id);
-        vectorIndex.rebuild();
+        outboxRepository.save(new IndexOutboxEvent(
+                IndexOutboxEvent.EventType.DOCUMENT_DELETED,
+                null,
+                id
+        ));
     }
 
     private int approximateTokenCount(String text) {

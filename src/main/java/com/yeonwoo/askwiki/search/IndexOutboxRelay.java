@@ -1,6 +1,5 @@
 package com.yeonwoo.askwiki.search;
 
-import com.yeonwoo.askwiki.document.Chunk;
 import com.yeonwoo.askwiki.document.ChunkRepository;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -28,8 +27,10 @@ public class IndexOutboxRelay {
     public int processPendingEvents() {
         var events = outboxRepository.findByStatusOrderByIdAsc(IndexOutboxEvent.Status.PENDING);
         for (IndexOutboxEvent event : events) {
-            chunkRepository.findById(event.getChunkId())
-                    .ifPresent((Chunk chunk) -> vectorIndex.add(chunk));
+            switch (event.getEventType()) {
+                case CHUNK_ADDED -> chunkRepository.findById(event.getChunkId()).ifPresent(vectorIndex::add);
+                case DOCUMENT_DELETED -> vectorIndex.removeDocument(event.getDocumentId());
+            }
             event.markProcessed();
         }
         return events.size();

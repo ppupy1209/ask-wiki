@@ -74,6 +74,13 @@ study ③에서 다룸. 측정: 20,002 청크에서 검색 6,458ms(DB 전수 스
 - **삭제·재빌드 축은 분리**: 세대(generation) 인덱스 스왑은 Step 3 후반에서 별도로 (create/add 경로 = 유령 문제 먼저).
 - 면접 질문 매핑: Q2(AFTER_COMMIT 한계→Outbox 보완) = B vs C 비교, Q3(멱등성) = relay 재처리 안전, Q4(Kafka 필요 시점) = C1/멀티인스턴스 트리거.
 
+### 결정 — 삭제 경로: outbox 통일 + 증분 제거 + AtomicReference 세대 스왑 (2026-07-07 Step 3-6)
+- **코드 분석으로 ROADMAP 전제 정정**: 기존 `rebuild()`는 이미 새 리스트를 다 만든 뒤 `entries` 참조를 한 번에 교체(volatile) → **검색이 빈 인덱스를 보는 창은 원래 없었다**. 즉 "삭제 시 검색 불가 시간 = 재빌드 시간"은 사실이 아니었음. 정직한 before→after: **delete() 응답 지연(동기 전체 재빌드 = DB 전 청크 재읽기·재파싱) → ~0(이벤트 1건 기록)**, 검색 다운타임은 원래도 ~0.
+- **결정**: 삭제도 create와 동일하게 **outbox로 통일**. `delete()`가 문서 삭제와 같은 트랜잭션에서 `DOCUMENT_DELETED` 이벤트를 기록(인덱스는 트랜잭션 안에서 안 건드림 → create에서 고친 것과 **대칭인 유령** 차단). relay가 `removeDocument(documentId)`로 해당 문서 엔트리만 증분 제거(DB 재읽기 없음, 없는 문서 제거는 no-op이라 멱등).
+- **AtomicReference 세대 스왑**: 인덱스 내부 `volatile List<Entry>` → `AtomicReference<List<Entry>>` + `updateAndGet`(CAS). add/remove/rebuild가 동시에 일어나도 원자적 교체(무중단). ROADMAP의 "AtomicReference 원자 교체"를 문자 그대로 구현. (현 단일-relay-스레드에선 경합이 없지만, 개념 증명 + 향후 안전.)
+- **V3 마이그레이션**: 삭제 이벤트는 청크 단위가 아니므로 `chunk_id`를 nullable로.
+- **트레이드오프(감수)**: 삭제가 eventual(≤ 폴링 주기)이 됨 → 그 창에 삭제 문서가 빈 내용으로 잠깐 검색될 수 있으나 자가 치유(다음 relay·재시작 rebuild). 단일 인스턴스 관리자 작업엔 무해하고 create와 일관. 즉시성 필요 시 afterCommit 동기 제거가 대안이나, create에서 기각한 방식이라 일관성상 outbox 유지.
+
 ### 부수 수확 — "CLI는 되는데 SDK만 안 될 때" 진단기 (글감)
 Testcontainers가 "Could not find a valid Docker environment"(Status 400, 빈 Info)로 실패했는데 docker CLI는 정상.
 네임드 파이프에 원시 HTTP를 직접 보내 계층을 벗겨보니 `/v1.32/info`→400, `/v1.44/info`→200 —

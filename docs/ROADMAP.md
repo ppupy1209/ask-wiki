@@ -116,7 +116,13 @@
     > - 테스트 A `recoversWithoutLossWhenRelayCrashesMidBatch`: create()로 3 PENDING → 크래시(2nd add throw)로 `processPendingEvents()` 예외 → **유실 0 검증**: 여전히 3 PENDING·0 PROCESSED(마킹 롤백) → 재시도(스텁이 이후엔 real) → index 3(크래시 전 부분 add가 **dedup**돼 4 아님)·0 PENDING·3 PROCESSED. = at-least-once + 멱등이 유실도 중복도 막음.
     > - 테스트 B `marksProcessedWhenChunkMissing`: 청크 삭제 후 PENDING 이벤트만 남은 상태(obsolete) → `processPendingEvents()`가 예외 없이 add 건너뛰고 PROCESSED 마킹(무한 재처리 방지, `ifPresent` 경로 검증).
     > - 신규 클래스 `IndexOutboxRelayFailureTest`(@SpyBean 격리 위해 별도).
-- [ ] 3-6: 삭제 경로 — 세대 인덱스 스왑(AtomicReference), 재빌드 중 검색 가용성 확인
+- [x] 3-6: 삭제 경로 — outbox 통일 + 증분 제거 + AtomicReference 세대 스왑 ✅ Codex 작성, Claude 검증(2026-07-07): `InMemoryVectorIndex`를 `AtomicReference<List<Entry>>`+`updateAndGet`로 전환(add 멱등·`removeDocument` 증분), `delete()`는 `DOCUMENT_DELETED` 이벤트 기록(vectorIndex 의존성 제거), relay가 타입 분기. V3로 `chunk_id` nullable. `IndexOutboxRelayTest` +2(`reflectsDeletionAfterRelayRuns`·`removeDocumentOnlyAffectsTargetDocument`). **전체 스위트 12개 그린.** (설계·근거 design-notes §3 "삭제 경로")
+    > **정정**: 기존 `rebuild()`는 이미 원자 교체(volatile)라 검색 다운타임은 원래 ~0. 진짜 개선은 delete() 동기 전체 재빌드 제거.
+    > - V3 마이그레이션: `index_outbox.chunk_id`를 nullable로. `IndexOutboxEvent.EventType`에 `DOCUMENT_DELETED` 추가(엔티티 chunkId nullable화).
+    > - `InMemoryVectorIndex`: 내부 `AtomicReference<List<Entry>>` + `updateAndGet`로 add/rebuild 전환, `removeDocument(Long documentId)`(해당 documentId 엔트리 제거, 멱등) 추가.
+    > - `DocumentService.delete()`: `vectorIndex.rebuild()` 제거 → 같은 트랜잭션에서 `DOCUMENT_DELETED` 이벤트 기록.
+    > - relay: 이벤트 타입 분기(CHUNK_ADDED→add, DOCUMENT_DELETED→removeDocument).
+    > - 테스트: 삭제 반영(생성·relay로 index N → 삭제·relay로 0), 삭제 멱등(재폴링 no-op), 삭제 롤백(이벤트도 롤백).
 - [ ] 3-7: 측정 — 유령 N→0 확정, 업로드→검색 반영 지연 평균/최대 ms(폴링 주기 관계)
 
 ### 측정할 숫자 (before → after)
