@@ -35,13 +35,13 @@
     - ✅ ③ MySQL 검색 최적화: **인메모리 벡터 인덱스**(`InMemoryVectorIndex`)로 전환. 20k 청크 검색 **6,458ms→25ms(약 256배)**. RagService·/api/ask도 인덱스 사용. bench `/api/bench/search?mode=dbscan|memory`.
 - ✅ **Phase A - 제품 전환 1차 (2026-07-05)**: `rac-doc` → **`ask-wiki`** 리네임(GitHub 레포·로컬 디렉터리·Java 패키지 `com.yeonwoo.askwiki`·앱/지표/대시보드 명). **파일 업로드**(`POST /api/documents/upload`, md·txt·pdf — PDFBox) + **웹 챗 UI**(`/`, 문서 등록·질문·출처 표시) 추가. ✅ **러닝 테스트 통과** (맥, 전체 스택): md 업로드→임베딩·저장, 미지원 확장자 400, 질문→정답+출처(1순위 정확, score 0.83, 6.3s), 동일 질문 캐시 히트(2ms), 문서 밖 질문 "모르겠습니다"(환각 억제). pdf 업로드는 실파일 미검증. ⚠️ 디렉터리 리네임으로 볼륨이 새로 생성됨(모델 재-pull 완료). 포트 충돌 시 `.env` 사용(로컬은 MYSQL_PORT=13306, GRAFANA_PORT=3001 사용 중).
 - ✅ **Phase A-2 - UI 제품화 (2026-07-05)**: 웹 UI를 제품 수준으로 리디자인 — 디자인 토큰·Pretendard 폰트, 헤더(로고·서버 상태 표시), 드래그앤드롭 업로드 존, 문서 목록(호버 삭제), 채팅 버블·타이핑 인디케이터·출처 칩·응답시간/캐시 메타, 토스트 알림, 반응형. 크롬 실화면에서 질문→답변+출처 렌더링 확인 완료.
-- 🔄 **Phase B1 - 증분 인덱싱·정합성 (진행 중, 2026-07-05 시작)**: step-by-step 진행.
+- ✅ **Phase B1 - 증분 인덱싱·정합성 (완료, 2026-07-05~07)**: 유령 재현(2건)→Outbox+relay로 create·delete 통일→relay-kill 유실 0→AtomicReference 세대 스왑→반영 지연 실측(pollMs=200: 평균 126.7ms). 테스트 스위트 13개 그린. 설계·측정은 design-notes §3, 세부 진행은 ROADMAP "Step 3 세부 진행".
     - ✅ Step 1: 유령 인덱스 재현 테스트(`GhostIndexTest`) — **빨간 불 재현 성공(2026-07-06): 롤백 후 유령 엔트리 2건 실측, DB는 0건.** 작성은 Codex CLI 위임, 실행·테스트 인프라 트러블슈팅(Docker Engine 29의 구식 API 400 거부 진단)은 Claude. 상세·재현 방법: ROADMAP "Step 1 세부 진행" + design-notes.md §3.
         - 2026-07-06 윈도우 PC에서 세션 재개. 작업 트리에 테스트 파일 없음 → Step 1을 여기서 진행. 환경 정리: 로컬 브랜치 `master`→`main` 정렬(업스트림 origin/main), 커밋 신원 레포 로컬 설정(§6), 네이티브 mysqld·redis와 포트 충돌 → `.env`(MYSQL_PORT=13306, REDIS_HOST_PORT=16379) 생성, 깨진 `core.sshCommand` 제거, 실수로 중첩 클론된 `ask-wiki/` 폴더 삭제. ⚠️ 이 PC의 SSH 키 2개 모두 GitHub 미등록 상태라 **푸시 보류 중**(`~/.ssh/id_ed25519_github_personal.pub`를 GitHub Settings → SSH keys에 등록하면 해결).
         - 2026-07-06 결정: 재현 테스트 DB는 **Testcontainers**(테스트가 전용 MySQL 8.4 컨테이너를 직접 기동 — 빈 DB라 절대값 단언 가능, 호스트 포트 충돌 무관, 추후 CI 편입 가능). compose MySQL 재사용안은 dev 데이터 오염(델타 단언 강제)·포트 오버라이드 의존·compose 기동 전제 때문에 기각.
-        - **지금 여기 (2026-07-07)**: Step 3-1~3-6 완료 — create·delete 모두 outbox+relay로 통일. 유령 2건→0건, relay 멱등·장애 유실 0, 삭제는 증분 제거 + AtomicReference 세대 스왑. **전체 스위트 12개 그린**(GhostIndexTest 3 + RelayTest 5 + FailureTest 2 + Cosine 2). 구현 Codex 위임, Claude 검증. 커밋 상태: `c4e339a`(3-1~3-4) origin 반영, `1198895`(3-5) 미푸시. ⚠️ **3-6은 미커밋 상태로 작업 트리에** 있음(연우님 커밋·푸시 예정). 다음은 **3-7 측정**(유령 N→0 확정·업로드→검색 반영 지연 평균/최대 ms — Docker compose 기동 필요). 그 뒤 Step 3 완료 → B2로.
-    - ⬜ Step 2: 설계 선택지 A~E 비교·결정 (design-notes.md에 기록)
-    - ⬜ Step 3~: 선택한 구조 구현 → 세대 스왑 → 장애 검증·측정
+    - ✅ Step 2: 설계 선택지 A~E 비교·결정 → **C(Outbox+relay) 메인**, B 비교·E 보정 관점 (design-notes §3).
+    - ✅ Step 3: 3-1~3-2 Outbox 테이블·엔티티 → 3-3 create 쓰기 경로(유령 0) → 3-4 relay(멱등 2겹) → 3-5 relay-kill(유실 0) → 3-6 삭제 통일·AtomicReference 세대 스왑 → 3-7 반영 지연 실측. 전부 Codex 위임·Claude 검증(3-7 측정 하네스만 Claude 직접). 세부는 ROADMAP.
+        - **지금 여기 (2026-07-07)**: B1 완료. ⚠️ 3-7 커밋은 **미커밋 상태로 작업 트리에**(연우님 커밋·푸시 예정, `c5dbf76`(3-6)도 미푸시). 다음 Phase = **B2 답변 품질 평가 하네스**(ROADMAP). W-1(CLAUDE.md·금칙어 훅)도 병행 가능.
 - ⬜ **Phase B2 - 답변 품질 평가 하네스**: 계획은 **`docs/ROADMAP.md`** 참고. **진행은 §7 작업 방식(step-by-step) 필수.**
 - ⬜ **Phase C1~C3 - 채용 공고 대응 딥다이브 (2026-07-07 편성)**: C1 벡터 DB 이행(B1 패턴 이식·B2 검증) → C2 상용 LLM 스위치(토큰·비용 관측, 구 B4·배포 흡수) → C3 에이전틱 RAG. 근거·매핑은 ROADMAP "채용 공고 대응" 참조.
 - 🔁 **W - Claude Code 워크플로우 아티팩트화 (병행, 2026-07-07 시작 결정)**: W-1 CLAUDE.md+금칙어 훅부터. 체크리스트는 ROADMAP.
