@@ -1,0 +1,26 @@
+#!/bin/sh
+# 커밋 전 금칙어 스캐너 (git-secrets 류).
+# 스테이지된 "추가된 줄"만 denylist 항목과 대조해, 걸리면 커밋을 막는다.
+# 설치: git config core.hooksPath .githooks
+# 우회(의도된 경우): git commit --no-verify
+denylist=".githooks/denylist.txt"
+[ -f "$denylist" ] || exit 0
+
+# 스테이지된 추가 라인(신규/수정/복사)만. denylist 파일 자신은 검사 제외.
+added=$(git diff --cached --no-color -U0 --diff-filter=ACM -- . ":(exclude)$denylist" \
+        | grep '^+' | grep -v '^+++' || true)
+[ -n "$added" ] || exit 0
+
+status=0
+while IFS= read -r term; do
+  case "$term" in ''|\#*) continue ;; esac
+  if printf '%s\n' "$added" | grep -qF -- "$term"; then
+    echo "[pre-commit] 금칙어 감지: \"$term\" — 스테이지된 추가 내용에 포함됨."
+    status=1
+  fi
+done < "$denylist"
+
+if [ "$status" -ne 0 ]; then
+  echo "[pre-commit] 커밋을 막았습니다. denylist 조정(.githooks/denylist.txt) 또는 의도된 경우 'git commit --no-verify'."
+fi
+exit $status
