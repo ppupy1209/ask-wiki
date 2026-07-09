@@ -1,5 +1,6 @@
 package com.yeonwoo.askwiki.document;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -12,8 +13,8 @@ public class Chunker {
     private final int overlapChars;
 
     public Chunker(
-            @org.springframework.beans.factory.annotation.Value("${askwiki.chunk.target-chars:500}") int targetChars,
-            @org.springframework.beans.factory.annotation.Value("${askwiki.chunk.overlap-chars:50}") int overlapChars
+            @Value("${askwiki.chunk.target-chars:500}") int targetChars,
+            @Value("${askwiki.chunk.overlap-chars:50}") int overlapChars
     ) {
         this.targetChars = targetChars;
         this.overlapChars = overlapChars;

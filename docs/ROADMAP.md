@@ -180,7 +180,13 @@
 - [x] B2-1: golden set 포맷·스키마 확정 ✅ (2026-07-07) 코퍼스 `src/test/resources/eval/corpus/*.md`(H1=제목, 파일명=slug) + `questions.json`(answerable/unanswerable 배열, expectedDocSlug·expectedAnswer·difficulty). 연우님 포맷 승인.
 - [x] B2-2: golden set 데이터 작성 ✅ (2026-07-07, Claude 초안) — HR/총무 **8문서**(vacation·attendance·salary·expense·welfare·security·onboarding·equipment) + **질문 50개**(answerable 30: easy/medium/hard 섞음, unanswerable 20: 도메인 인접 함정). 선정 기준은 `eval/README.md`. **⚠️ 연우님 사실관계 검수 필요**(정답이 문서와 일치하는지).
 - [x] B2-3: hit rate@K 러너 ✅ (2026-07-07, Codex 작성 배경 태스크 착지·Claude 검증) `eval/HitRateEvalTest.java`(`@Tag("eval")`, 기본 `test`에서 제외 — build.gradle `excludeTags`/`evalTest` 태스크). 실제 Ollama 임베딩 필요(채팅 LLM 없음, 결정적). **기준선 실측**: `@1=36.7% @2=56.7% @4=93.3% @8=100.0%` (난이도별 @4: easy 88.9%·medium 92.3%·hard 100%). 해석: @1→@4 급등(청크 경쟁 때문에 top-1은 낮지만 top-4에 기대문서 거의 포함) → topK=4 기본값이 이 코퍼스에선 타당, @8은 +6.7%뿐. 난이도 역전은 표본 작아(30문항, @4 오답 2건) 노이즈.
-- [ ] B2-4: 환각률·인용 정확도 러너 (LLM 필요, 로컬 실행 태그 분리).
+- [x] B2-4: 환각률·오거부율 러너 ✅ (2026-07-07, Codex 작성·Claude 실행) `HallucinationEvalTest`(@Tag("eval"), 실제 llama3.2). **기준선 실측: 환각률 65%(20중 13 지어냄)·오거부율 0%(30중 0).** → llama3.2:3b는 "너무 대담" — 없는 것도 답하고(환각↑) 있는 건 절대 안 놓침(오거부 0). **핵심 발견: Phase A의 1회 수동 확인("환각 억제 OK")은 거짓 안심이었다 — 20문항 체계 측정하니 65% 환각. 이게 golden set이 필요한 이유.** 개선 레버 = 프롬프트 강화(환각률 ↓ 재측정, 아래 측정할 숫자).
+    > **설계 (2026-07-07)**:
+    > - **환각률**(핵심): 답 없는 20문항에 `RagService.answer(q,4)` → `Answered.answer()`가 "모르겠습니다"를 **안** 담으면 환각(지어냄). 환각률=지어낸/20.
+    > - **오거부율(false refusal)**: 답 있는 30문항에 답변이 잘못 "모르겠습니다"면 오거부. 오거부율=오거부/30. (환각률과 짝 — 프롬프트가 소심하면 오거부↑, 대담하면 환각↑. 이 트레이드오프가 프롬프트 튜닝의 핵심.)
+    > - **판정 = 문자열 매칭**("모르겠습니다" 포함 여부). 우리 프롬프트가 no-context 시 정확히 그 문구를 내도록 설계돼 있어 잘 맞고, **결정적·재현 가능**.
+    > - **대안(문서에 명시, 채택 안 함)**: ① **LLM-as-judge** — 다른 LLM에게 "이 답변이 모른다고 했나/정답인가"를 물어 판정. 표현 변형("정보가 없습니다")에 유연하지만 더 느리고 비결정적이며 판정자도 틀릴 수 있음. ② **답변 정답성(answer correctness)** — 답변을 `expectedAnswer`와 대조(정답을 실제로 맞혔나). 문자열로는 취약(표현 차이)해 LLM-judge가 필요 → 후속 과제. ③ **인용 정확도** — sources가 정답 문서를 가리키는 비율인데, sources=topK 검색결과라 **hit rate와 동일 신호**라서 별도 측정 생략(참고용으로만 답변 도달 건에서 부수 집계 가능).
+    > - 러너: `HallucinationEvalTest`(@Tag("eval")). 출력 `[GEN-QUALITY] hallucination=..% falseRefusal=..%`. 비결정적이라 값은 실행마다 다름(그래서 CI 제외, 로컬 주기).
 - [x] B2-5: 실험 매트릭스 ✅ (2026-07-07) `Chunker` 설정화 + `ChunkSizeMatrixEvalTest`. 결정: **청크 500·topK 4 유지**(실험이 검증). 200자는 파편화로 하락, 400~800은 동일(짧은 문서 한계).
     > **설계 (2026-07-07)**: 선행 = `Chunker`의 하드코딩 `TARGET_CHARS=500`/`OVERLAP_CHARS=50`을 설정값(`askwiki.chunk.target-chars`/`overlap-chars`, 기본 500/50)으로 추출 → 크기 가변(운영 동작 불변). 실험 = 자체 완결형 `@Tag("eval")` 테스트(`ChunkSizeMatrixEvalTest`): 크기별로 `new Chunker(크기)`로 8문서 청킹 → 각 청크 임베딩(실제 Ollama) → 질문마다 `SearchMath.cosineSimilarity`로 top 8 → hit@{2,4,8}. HitRateEvalTest와 동일 채점, 청크 크기만 스윕. Codex 작성·Claude 검증.
     > **실측 매트릭스 (2026-07-07)**:
@@ -198,7 +204,7 @@
 ### 측정할 숫자
 
 - hit rate@4: 기준선 **93.3%**(청크 500·topK 4·8문서 코퍼스, 2026-07-07 실측). @1=36.7%/@8=100%. **B2-5 매트릭스 결과: 400~800에서 93.3% plateau, 200은 73.3%로 하락 → 현 기본값 검증(유지)**. 실험이 청크 크기로 개선 여지를 못 만든 게 결론(짧은 문서 한계).
-- 환각률: **N% → M%** (프롬프트 개선 전후) — B2-4에서 측정 예정.
+- 환각률: 기준선 **65%**(llama3.2:3b, 답 없는 20문항 중 13 지어냄, 2026-07-07 실측) → 프롬프트 강화 후 재측정(목표 ↓). 오거부율 0%. 비결정적이라 실행마다 ±.
 
 ### 학습 확인 질문 (면접 대비)
 
