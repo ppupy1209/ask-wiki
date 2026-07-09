@@ -179,14 +179,14 @@
 
 - [x] B2-1: golden set 포맷·스키마 확정 ✅ (2026-07-07) 코퍼스 `src/test/resources/eval/corpus/*.md`(H1=제목, 파일명=slug) + `questions.json`(answerable/unanswerable 배열, expectedDocSlug·expectedAnswer·difficulty). 연우님 포맷 승인.
 - [x] B2-2: golden set 데이터 작성 ✅ (2026-07-07, Claude 초안) — HR/총무 **8문서**(vacation·attendance·salary·expense·welfare·security·onboarding·equipment) + **질문 50개**(answerable 30: easy/medium/hard 섞음, unanswerable 20: 도메인 인접 함정). 선정 기준은 `eval/README.md`. **⚠️ 연우님 사실관계 검수 필요**(정답이 문서와 일치하는지).
-- [ ] B2-3: hit rate@K 러너 (`@Tag("eval")`, Testcontainers, LLM 없이 검색만 — 결정적). 기준선 hit rate@4 측정.
+- [x] B2-3: hit rate@K 러너 ✅ (2026-07-07, Codex 작성 배경 태스크 착지·Claude 검증) `eval/HitRateEvalTest.java`(`@Tag("eval")`, 기본 `test`에서 제외 — build.gradle `excludeTags`/`evalTest` 태스크). 실제 Ollama 임베딩 필요(채팅 LLM 없음, 결정적). **기준선 실측**: `@1=36.7% @2=56.7% @4=93.3% @8=100.0%` (난이도별 @4: easy 88.9%·medium 92.3%·hard 100%). 해석: @1→@4 급등(청크 경쟁 때문에 top-1은 낮지만 top-4에 기대문서 거의 포함) → topK=4 기본값이 이 코퍼스에선 타당, @8은 +6.7%뿐. 난이도 역전은 표본 작아(30문항, @4 오답 2건) 노이즈.
 - [ ] B2-4: 환각률·인용 정확도 러너 (LLM 필요, 로컬 실행 태그 분리).
 - [ ] B2-5: 실험 매트릭스(청크 200/400/800 × topK 2/4/8) → hit rate 표 → 기본값 재결정·근거 기록.
 
 ### 측정할 숫자
 
-- hit rate@4: 기준선 **N%** → 튜닝 후 **M%** (무엇을 바꿔서 올랐는지가 핵심)
-- 환각률: **N% → M%** (프롬프트 개선 전후)
+- hit rate@4: 기준선 **93.3%**(청크 500·topK 4·8문서 코퍼스, 2026-07-07 실측) → 실험 매트릭스(B2-5)로 튜닝 후 재측정. @1=36.7%/@8=100%.
+- 환각률: **N% → M%** (프롬프트 개선 전후) — B2-4에서 측정 예정.
 
 ### 학습 확인 질문 (면접 대비)
 

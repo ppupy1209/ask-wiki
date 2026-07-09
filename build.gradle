@@ -51,7 +51,19 @@ dependencies {
 }
 
 test {
-    useJUnitPlatform()   // JUnit 5 테스트 검색 (없으면 gradle test가 테스트를 못 찾음)
+    useJUnitPlatform {
+        excludeTags 'eval'
+    }
     // docker-java 기본 API 버전(1.32)을 Docker Engine 29(최소 1.40)가 400으로 거부 → 명시 고정
     systemProperty 'api.version', '1.44'
+}
+
+tasks.register('evalTest', Test) {
+    group = 'verification'
+    useJUnitPlatform {
+        includeTags 'eval'
+    }
+    systemProperty 'api.version', '1.44'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
 }
