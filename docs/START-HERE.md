@@ -42,7 +42,7 @@
     - ✅ Step 2: 설계 선택지 A~E 비교·결정 → **C(Outbox+relay) 메인**, B 비교·E 보정 관점 (design-notes §3).
     - ✅ Step 3: 3-1~3-2 Outbox 테이블·엔티티 → 3-3 create 쓰기 경로(유령 0) → 3-4 relay(멱등 2겹) → 3-5 relay-kill(유실 0) → 3-6 삭제 통일·AtomicReference 세대 스왑 → 3-7 반영 지연 실측. 전부 Codex 위임·Claude 검증(3-7 측정 하네스만 Claude 직접). 세부는 ROADMAP.
         - **지금 여기 (2026-07-07)**: B1 완료. ⚠️ 3-7 커밋은 **미커밋 상태로 작업 트리에**(연우님 커밋·푸시 예정, `c5dbf76`(3-6)도 미푸시). 다음 Phase = **B2 답변 품질 평가 하네스**(ROADMAP). W-1(CLAUDE.md·금칙어 훅)도 병행 가능.
-- 🔄 **Phase B2 - 답변 품질 평가 하네스 (진행 중, 2026-07-07 시작)**: 결정 = **사내 HR/총무 golden set + JUnit @Tag("eval") 러너**. B2-1 포맷·B2-2 golden set·B2-3 hit rate 러너 완료. **기준선 hit rate@4=93.3%**(`evalTest`, Ollama 필요). **지금 여기: B2-4 환각률·인용 정확도 러너**(LLM 필요) → B2-5 실험 매트릭스(청크·topK 튜닝). ⚠️ golden set 사실관계는 연우님 검수 권장. 세부는 ROADMAP "Step 세부 진행". 진행은 §7 step-by-step.
+- 🔄 **Phase B2 - 답변 품질 평가 하네스 (진행 중, 2026-07-07 시작)**: 결정 = **사내 HR/총무 golden set + JUnit @Tag("eval") 러너**. B2-1 포맷·B2-2 golden set·B2-3 hit rate 러너·B2-5 실험 매트릭스 완료. **hit rate@4=93.3%**, 매트릭스 결과 **청크 500·topK 4 유지 결정**(200자는 파편화로 하락, 400~800 동일 — 짧은 문서 한계). **지금 여기: B2-4 환각률·인용 정확도**(마지막 남은 조각, 채팅 LLM llama3.2 필요) → 이후 B2 완료. ⚠️ golden set 사실관계는 연우님 검수 권장. 세부는 ROADMAP. 진행은 §7 step-by-step.
 - ⬜ **Phase C1~C3 - 채용 공고 대응 딥다이브 (2026-07-07 편성)**: C1 벡터 DB 이행(B1 패턴 이식·B2 검증) → C2 상용 LLM 스위치(토큰·비용 관측, 구 B4·배포 흡수) → C3 에이전틱 RAG. 근거·매핑은 ROADMAP "채용 공고 대응" 참조.
 - 🔁 **W - Claude Code 워크플로우 아티팩트화 (병행, 2026-07-07 시작 결정)**: W-1 CLAUDE.md+금칙어 훅부터. 체크리스트는 ROADMAP.
 - ⬜ **Phase D - 포트폴리오 통합**: study 글 + 다이어그램을 포트폴리오 사이트(`yeonwoo-dev/web/`)에 반영. 체크리스트는 `docs/ROADMAP.md` 하단.

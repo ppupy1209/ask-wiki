@@ -8,8 +8,16 @@ import java.util.List;
 @Component
 public class Chunker {
 
-    private static final int TARGET_CHARS = 500;
-    private static final int OVERLAP_CHARS = 50;
+    private final int targetChars;
+    private final int overlapChars;
+
+    public Chunker(
+            @org.springframework.beans.factory.annotation.Value("${askwiki.chunk.target-chars:500}") int targetChars,
+            @org.springframework.beans.factory.annotation.Value("${askwiki.chunk.overlap-chars:50}") int overlapChars
+    ) {
+        this.targetChars = targetChars;
+        this.overlapChars = overlapChars;
+    }
 
     public List<String> split(String content) {
         String text = content.strip();
@@ -26,7 +34,7 @@ public class Chunker {
                 break;
             }
 
-            int hardEnd = Math.min(start + TARGET_CHARS, text.length());
+            int hardEnd = Math.min(start + this.targetChars, text.length());
             int end = hardEnd == text.length()
                     ? hardEnd
                     : lastWhitespaceBetween(text, start, hardEnd);
@@ -42,7 +50,7 @@ public class Chunker {
                 break;
             }
 
-            int nextStart = Math.max(start + 1, end - OVERLAP_CHARS);
+            int nextStart = Math.max(start + 1, end - this.overlapChars);
             start = alignToWhitespaceBoundary(text, nextStart, end);
         }
 
