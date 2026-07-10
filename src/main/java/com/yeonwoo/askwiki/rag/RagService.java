@@ -11,6 +11,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 @Component
@@ -20,13 +21,15 @@ public class RagService {
     private final InMemoryVectorIndex vectorIndex;
     private final ChatModel chatModel;
     private final LlmMetrics llmMetrics;
+    private final LlmCallGuard llmCallGuard;
 
     public RagService(EmbeddingClient embeddingClient, InMemoryVectorIndex vectorIndex,
-                      ChatModel chatModel, LlmMetrics llmMetrics) {
+                      ChatModel chatModel, LlmMetrics llmMetrics, LlmCallGuard llmCallGuard) {
         this.embeddingClient = embeddingClient;
         this.vectorIndex = vectorIndex;
         this.chatModel = chatModel;
         this.llmMetrics = llmMetrics;
+        this.llmCallGuard = llmCallGuard;
     }
 
     public RagResult answer(String question, int topK) {
@@ -76,18 +79,25 @@ public class RagService {
                 답변:
                 """.formatted(context, question);
 
+        // 검색된 근거는 미리 만들어 둔다 — 정상 답변뿐 아니라 degraded 폴백에서도 그대로 제공한다.
+        List<Source> sources = matches.stream()
+                .map(m -> new Source(m.documentId(), m.title(), m.seq(), m.score()))
+                .toList();
+
         try {
-            // call(Prompt) → ChatResponse. 호출 지연을 재고, 응답의 토큰 usage를 Micrometer 지표로 기록한다. (C2-3)
+            // 세마포어·타임아웃으로 보호한 채 호출(C2-4). 호출 지연·토큰 usage는 Micrometer 지표로 기록(C2-3).
             long startNanos = System.nanoTime();
-            ChatResponse response = chatModel.call(new Prompt(prompt));
+            ChatResponse response = llmCallGuard.call(chatModel, new Prompt(prompt));
             llmMetrics.record(response, System.nanoTime() - startNanos);
 
             String answer = response.getResult().getOutput().getText();
-
-            List<Source> sources = matches.stream()
-                    .map(m -> new Source(m.documentId(), m.title(), m.seq(), m.score()))
-                    .toList();
             return new RagResult.Answered(answer, sources);
+
+        } catch (LlmUnavailableException e) {
+            // 타임아웃/과부하 → 하드 실패 대신 degraded: 검색된 근거는 그대로 돌려준다.
+            llmMetrics.recordDegraded(e.reason().name().toLowerCase(Locale.ROOT));
+            return new RagResult.Degraded(
+                    "일시적으로 답변 생성이 어렵습니다. 아래 관련 문서를 참고하세요.", sources);
 
         } catch (Exception e) {
             return new RagResult.LlmError(e.getMessage());

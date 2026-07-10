@@ -36,6 +36,7 @@ public class LlmMetrics {
             "gemini", new double[]{0.0, 0.0}
     );
 
+    private final MeterRegistry registry;
     private final String provider;
     private final double[] price;
     private final Counter calls;
@@ -46,6 +47,7 @@ public class LlmMetrics {
 
     public LlmMetrics(MeterRegistry registry,
                       @Value("${askwiki.llm.provider:ollama}") String provider) {
+        this.registry = registry;
         this.provider = provider.trim().toLowerCase(Locale.ROOT);
         this.price = PRICE_PER_1M.getOrDefault(this.provider, new double[]{0.0, 0.0});
         this.calls = Counter.builder("llm.calls").tag("provider", this.provider).register(registry);
@@ -77,5 +79,10 @@ public class LlmMetrics {
         if (cost > 0) {
             costUsd.increment(cost);
         }
+    }
+
+    /** degraded 폴백(타임아웃·과부하) 발생을 기록한다. reason: timeout|busy. (C2-4) */
+    public void recordDegraded(String reason) {
+        registry.counter("llm.degraded", "provider", provider, "reason", reason).increment();
     }
 }

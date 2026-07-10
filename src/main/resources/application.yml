@@ -55,6 +55,10 @@ spring:
 askwiki:
   llm:
     provider: ${ASKWIKI_LLM_PROVIDER:ollama}
+    # 장애격리 (C2-4): 동시 호출 상한(세마포어)·호출 타임아웃·세마포어 획득 대기.
+    max-concurrent: ${ASKWIKI_LLM_MAX_CONCURRENT:8}          # 동시 LLM 호출 상한 (초과 시 degraded)
+    call-timeout-ms: ${ASKWIKI_LLM_CALL_TIMEOUT_MS:20000}    # 호출 타임아웃 (초과 시 degraded)
+    acquire-timeout-ms: ${ASKWIKI_LLM_ACQUIRE_TIMEOUT_MS:2000}  # 세마포어 획득 대기
 
 management:
   endpoints:

@@ -70,6 +70,12 @@ public class AskController {
                             elapsedMillis(startNanos),
                             false
                     ));
+            case RagResult.Degraded degraded -> ResponseEntity.ok(new AskResponse(
+                    degraded.message(),
+                    degraded.sources(),
+                    elapsedMillis(startNanos),
+                    false
+            ));
         };
     }
 
