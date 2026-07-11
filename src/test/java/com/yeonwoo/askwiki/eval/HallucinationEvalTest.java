@@ -11,9 +11,13 @@ import com.yeonwoo.askwiki.rag.RagService;
 import com.yeonwoo.askwiki.search.InMemoryVectorIndex;
 import com.yeonwoo.askwiki.search.IndexOutboxRelay;
 import com.yeonwoo.askwiki.search.IndexOutboxRepository;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.core.io.ClassPathResource;
@@ -30,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -68,6 +73,20 @@ class HallucinationEvalTest {
     @Autowired
     IndexOutboxRepository outboxRepository;
 
+    @Autowired
+    MeterRegistry meterRegistry;
+
+    @Value("${askwiki.llm.provider:ollama}")
+    String provider;
+
+    /**
+     * 문항 간 대기(ms). 상용 무료 티어의 분당 요청 제한 대응 — 예: gemini-2.5-flash 무료는 5 RPM이라
+     * 13000ms(≈4.6 RPM)로 돌린다. Spring AI 기본 에러 핸들러가 429를 재시도하지 않아 pacing 없이는 러너가 중단된다.
+     * 판정·per-call 지연 측정에는 영향 없고 총 실행 시간만 늘어난다. 기본 0 = 대기 없음(로컬 Ollama).
+     */
+    @Value("${askwiki.eval.pacing-ms:0}")
+    long pacingMs;
+
     @Test
     void measuresHallucinationAndFalseRefusal() throws IOException {
         outboxRepository.deleteAll();
@@ -90,6 +109,7 @@ class HallucinationEvalTest {
         int hallucinated = 0;
         for (JsonNode node : unanswerable) {
             unTotal++;
+            pace();
             String answerText = answerText(questionText(node));
             if (!answerText.contains("모르겠습니다")) {
                 hallucinated++;
@@ -100,6 +120,7 @@ class HallucinationEvalTest {
         int falseRefusal = 0;
         for (JsonNode node : answerable) {
             ansTotal++;
+            pace();
             String answerText = answerText(questionText(node));
             if (answerText.contains("모르겠습니다")) {
                 falseRefusal++;
@@ -110,10 +131,39 @@ class HallucinationEvalTest {
         double fRate = rate(falseRefusal, ansTotal);
 
         System.out.println(String.format("[GEN-QUALITY] unanswerable=%d hallucinated=%d (%.1f%%) | answerable=%d falseRefusal=%d (%.1f%%)", unTotal, hallucinated, hRate, ansTotal, falseRefusal, fRate));
+        printLlmUsageSummary();
 
         assertEquals(20, unTotal);
         assertEquals(30, ansTotal);
         assertTrue(0.0 <= hRate && hRate <= 100.0 && 0.0 <= fRate && fRate <= 100.0);
+    }
+
+    /** C2-5 프로바이더 비교의 부수 지표(토큰·지연·비용) — LlmMetrics가 쌓은 Micrometer 값을 러너 출력으로 노출한다. */
+    private void printLlmUsageSummary() {
+        double calls = meterRegistry.counter("llm.calls", "provider", provider).count();
+        double inputTokens = meterRegistry.counter("llm.tokens", "provider", provider, "type", "input").count();
+        double outputTokens = meterRegistry.counter("llm.tokens", "provider", provider, "type", "output").count();
+        double costUsd = meterRegistry.counter("llm.cost.usd", "provider", provider).count();
+        double degraded = meterRegistry.find("llm.degraded").tag("provider", provider)
+                .counters().stream().mapToDouble(Counter::count).sum();
+        Timer latency = meterRegistry.timer("llm.latency", "provider", provider);
+        System.out.println(String.format(
+                "[LLM-USAGE] provider=%s calls=%.0f degraded=%.0f tokens(in=%.0f out=%.0f) costUsd=%.4f latencyMs(mean=%.0f max=%.0f total=%.0f)",
+                provider, calls, degraded, inputTokens, outputTokens, costUsd,
+                latency.mean(TimeUnit.MILLISECONDS), latency.max(TimeUnit.MILLISECONDS),
+                latency.totalTime(TimeUnit.MILLISECONDS)));
+    }
+
+    private void pace() {
+        if (pacingMs <= 0) {
+            return;
+        }
+        try {
+            Thread.sleep(pacingMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("interrupted while pacing", e);
+        }
     }
 
     private String answerText(String question) {
