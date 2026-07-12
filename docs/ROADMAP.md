@@ -298,7 +298,7 @@
 ### 과제 (Step — 결정·핵심 구현은 연우님 직접, step-by-step)
 
 - [x] Step 1 ✅ (2026-07-12): **ES kNN + 자체 포트(`VectorIndex`) 어댑터** 결정(연우님) — 채택·기각 근거 design-notes §5
-- [ ] Step 2: `VectorIndex` 포트 추출(순수 리팩터링·동작 불변, 기존 스위트 그린 유지) → 새 저장소 compose 추가 → 어댑터 구현 → B1 패턴 이식(relay→포트, 멱등 upsert·문서 삭제) → Ghost/Relay 테스트를 어댑터 구현으로도 그린 **(진행: 2-1 포트 추출 ✅ 2026-07-12, Codex 작성·Claude 검증·19 그린, `635431b`)**
+- [ ] Step 2: `VectorIndex` 포트 추출(순수 리팩터링·동작 불변, 기존 스위트 그린 유지) → 새 저장소 compose 추가 → 어댑터 구현 → B1 패턴 이식(relay→포트, 멱등 upsert·문서 삭제) → Ghost/Relay 테스트를 어댑터 구현으로도 그린 **(진행: 2-1 포트 추출 ✅ · 2-2 ES 인프라 ✅ 2026-07-12, Codex 작성·Claude 검증, `635431b`·`a7694e1` — 네이티브 클라이언트 결정은 design-notes §5)**
 - [ ] Step 3: 이행 검증·측정 — B2 hit rate 동등성(기준 93.3%@4)·검색 지연(20k 벤치: 인메모리 25ms vs 외부)·반영 지연(B1 126.7ms 대비)·시작 시간(rebuild 제거 효과)
 - [ ] (강의 접목 P1-②) Spring AI ETL(DocumentReader·TokenTextSplitter) vs 자체 Chunker+PDFBox — B2-5 매트릭스 재실행으로 비교, 채택은 결과로
 
