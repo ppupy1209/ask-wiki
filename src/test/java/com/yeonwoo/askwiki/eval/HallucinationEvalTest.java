@@ -8,7 +8,7 @@ import com.yeonwoo.askwiki.document.ChunkRepository;
 import com.yeonwoo.askwiki.document.DocumentRepository;
 import com.yeonwoo.askwiki.document.DocumentService;
 import com.yeonwoo.askwiki.rag.RagService;
-import com.yeonwoo.askwiki.search.InMemoryVectorIndex;
+import com.yeonwoo.askwiki.search.VectorIndex;
 import com.yeonwoo.askwiki.search.IndexOutboxRelay;
 import com.yeonwoo.askwiki.search.IndexOutboxRepository;
 import io.micrometer.core.instrument.Counter;
@@ -59,7 +59,7 @@ class HallucinationEvalTest {
     DocumentService documentService;
 
     @Autowired
-    InMemoryVectorIndex vectorIndex;
+    VectorIndex vectorIndex;
 
     @Autowired
     IndexOutboxRelay relay;

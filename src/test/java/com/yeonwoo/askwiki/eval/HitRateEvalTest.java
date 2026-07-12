@@ -8,7 +8,7 @@ import com.yeonwoo.askwiki.document.ChunkRepository;
 import com.yeonwoo.askwiki.document.DocumentRepository;
 import com.yeonwoo.askwiki.document.DocumentService;
 import com.yeonwoo.askwiki.embedding.EmbeddingClient;
-import com.yeonwoo.askwiki.search.InMemoryVectorIndex;
+import com.yeonwoo.askwiki.search.VectorIndex;
 import com.yeonwoo.askwiki.search.IndexOutboxRelay;
 import com.yeonwoo.askwiki.search.IndexOutboxRepository;
 import org.junit.jupiter.api.Tag;
@@ -52,7 +52,7 @@ class HitRateEvalTest {
     DocumentService documentService;
 
     @Autowired
-    InMemoryVectorIndex vectorIndex;
+    VectorIndex vectorIndex;
 
     @Autowired
     EmbeddingClient embeddingClient;
