@@ -299,13 +299,13 @@
 
 - [x] Step 1 ✅ (2026-07-12): **ES kNN + 자체 포트(`VectorIndex`) 어댑터** 결정(연우님) — 채택·기각 근거 design-notes §5
 - [x] Step 2 ✅ (2026-07-12): 포트 추출 → ES 인프라 → 어댑터 → B1 패턴 재증명, 전부 Codex 작성·Claude 검증. 2-1 `VectorIndex` 포트(동작 불변, `635431b`) · 2-2 ES compose 8.17.4+네이티브 클라이언트+스모크(`a7694e1`) · 2-3 `EsVectorIndex`(_id=chunkId 멱등·kNN·점수 역변환 2s−1·refresh 프로퍼티)+`askwiki.vector-index.impl` 스위치+계약 테스트 4(`89e5a10`) · 2-4 **B1 정합성 불변식 4종(유령 0·relay 반영+멱등·크래시 무유실·삭제 통합)을 ES 구현으로 재증명**(`66d9908`). 검증 중 Claude 수정 2건: 괄호 누락 컴파일 에러(2-3), **목 벡터 2차원→768차원**(ES가 dims 강제 — InMemory엔 없는 제약이라 B1 픽스처 복사 시 걸리는 함정, 2-4). 전체 스위트 11클래스 그린.
-- [ ] Step 3: 이행 검증·측정 — B2 hit rate 동등성(기준 93.3%@4)·검색 지연(20k 벤치: 인메모리 25ms vs 외부)·반영 지연(B1 126.7ms 대비)·시작 시간(rebuild 제거 효과)
+- [ ] Step 3: 이행 검증·측정 — 3-① hit rate 동등성 ✅(93.3 vs 90.0@4, `48e0838`) · 3-② 20k 스케일 벤치 ✅(지연 22.8→12.8ms·recall 0.83@nc100·dial·rebuild 배치 수정, 2026-07-12) · 남음: 반영 지연(B1 126.7ms + ES refresh)·기동 시간·ETL 비교(P1-②)
 - [ ] (강의 접목 P1-②) Spring AI ETL(DocumentReader·TokenTextSplitter) vs 자체 Chunker+PDFBox — B2-5 매트릭스 재실행으로 비교, 채택은 결과로
 
 ### 측정할 숫자 (목표)
 
 - hit rate@4: ✅ 실측(2026-07-12) — memory **93.3%**(B2와 완전 일치, 결정적) vs ES **90.0%**(@1·@2·@8은 완전 동일, @4만 1문항 4↔5위 스왑). **근사 손실 아님**(num_candidates≥N=완전탐색) — 부동소수 코사인 경로 차이로 인한 근접 순위 스왑. 해석·조건 design-notes §5. ⚠️ 20k 벤치(num_candidates<N)에서 진짜 ANN 구간 재측정 필요.
-- 검색 지연: 20k 청크 인메모리 25ms vs 외부 저장소 ?ms — 느려져도 정직하게, 대신 스케일 곡선(선형 vs 로그성)이 논점
+- 검색 지연: ✅ 실측(2026-07-12, 20k·가우시안 랜덤) — 인메모리 avg **22.76ms** vs ES kNN avg **12.84ms**(ES 1.8배 빠름, 네트워크 홉에도 불구 — 교차점이 이미 20k 이전). 단 ES 우위는 기본 nc=100(recall 0.83) 동작점 기준. recall dial: nc 4→0.386 … 200→0.879. **부수 발견**: `rebuild()` 무제한 단일 벌크가 20k에서 OOM(가우시안 float 직렬화 200MB+) → `BULK_BATCH_SIZE=500` 배치로 수정(벤치가 프로덕션 결함 발견). 상세·해석 design-notes §5.
 - 반영 지연: outbox→외부 인덱스 반영 (B1 실측 평균 126.7ms 대비)
 - 기동: rebuild 전량 로드 제거 효과
 
