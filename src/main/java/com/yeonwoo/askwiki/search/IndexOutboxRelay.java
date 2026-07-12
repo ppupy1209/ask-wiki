@@ -10,12 +10,12 @@ public class IndexOutboxRelay {
 
     private final IndexOutboxRepository outboxRepository;
     private final ChunkRepository chunkRepository;
-    private final InMemoryVectorIndex vectorIndex;
+    private final VectorIndex vectorIndex;
 
     public IndexOutboxRelay(
             IndexOutboxRepository outboxRepository,
             ChunkRepository chunkRepository,
-            InMemoryVectorIndex vectorIndex
+            VectorIndex vectorIndex
     ) {
         this.outboxRepository = outboxRepository;
         this.chunkRepository = chunkRepository;

@@ -4,7 +4,7 @@ import com.yeonwoo.askwiki.common.ChunkMatch;
 import com.yeonwoo.askwiki.common.RagResult;
 import com.yeonwoo.askwiki.common.Source;
 import com.yeonwoo.askwiki.embedding.EmbeddingClient;
-import com.yeonwoo.askwiki.search.InMemoryVectorIndex;
+import com.yeonwoo.askwiki.search.VectorIndex;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -18,12 +18,12 @@ import java.util.stream.Collectors;
 public class RagService {
 
     private final EmbeddingClient embeddingClient;
-    private final InMemoryVectorIndex vectorIndex;
+    private final VectorIndex vectorIndex;
     private final ChatModel chatModel;
     private final LlmMetrics llmMetrics;
     private final LlmCallGuard llmCallGuard;
 
-    public RagService(EmbeddingClient embeddingClient, InMemoryVectorIndex vectorIndex,
+    public RagService(EmbeddingClient embeddingClient, VectorIndex vectorIndex,
                       ChatModel chatModel, LlmMetrics llmMetrics, LlmCallGuard llmCallGuard) {
         this.embeddingClient = embeddingClient;
         this.vectorIndex = vectorIndex;

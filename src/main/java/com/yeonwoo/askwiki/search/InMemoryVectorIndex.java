@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
  * 즉 매 검색의 "DB 전체 읽기 + 파싱" 비용을 제거한다.
  */
 @Component
-public class InMemoryVectorIndex {
+public class InMemoryVectorIndex implements VectorIndex {
 
     private record Entry(Long chunkId, Long documentId, int seq, float[] vector) {}
 

@@ -5,7 +5,7 @@ import com.yeonwoo.askwiki.document.ChunkRepository;
 import com.yeonwoo.askwiki.document.Document;
 import com.yeonwoo.askwiki.document.DocumentRepository;
 import com.yeonwoo.askwiki.embedding.EmbeddingCodec;
-import com.yeonwoo.askwiki.search.InMemoryVectorIndex;
+import com.yeonwoo.askwiki.search.VectorIndex;
 import com.yeonwoo.askwiki.search.SearchService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -36,13 +36,13 @@ public class SearchBenchController {
     private final ChunkRepository chunkRepository;
     private final EmbeddingCodec embeddingCodec;
     private final SearchService searchService;     // baseline
-    private final InMemoryVectorIndex vectorIndex; // 최적화
+    private final VectorIndex vectorIndex; // 최적화
 
     public SearchBenchController(DocumentRepository documentRepository,
                                  ChunkRepository chunkRepository,
                                  EmbeddingCodec embeddingCodec,
                                  SearchService searchService,
-                                 InMemoryVectorIndex vectorIndex) {
+                                 VectorIndex vectorIndex) {
         this.documentRepository = documentRepository;
         this.chunkRepository = chunkRepository;
         this.embeddingCodec = embeddingCodec;
