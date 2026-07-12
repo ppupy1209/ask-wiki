@@ -252,16 +252,16 @@
 - [x] C2-2 ✅ (2026-07-10): `RagService`가 `chatModel.call(prompt)`(String) → `chatModel.call(new Prompt(prompt))` → `ChatResponse`로 전환. 답변은 `response.getResult().getOutput().getText()`, 토큰 usage는 `response.getMetadata().getUsage()`(prompt/completion/total)로 확보해 현재는 DEBUG 로깅(`logTokenUsage`). RagResult.Answered DTO는 불변(AskController/QueryCache 무영향). 컴파일·회귀 13 그린. **라이브 usage 관찰은 Ollama 필요**(임베딩) → C2-3/C2-5에서 확인. 기능상 call(String)과 동치 + usage 로깅만 추가라 안전.
 - [x] C2-3 ✅ (2026-07-10): `LlmMetrics` 컴포넌트(QueryCache 카운터 패턴)가 `llm.calls{provider}`·`llm.tokens{provider,type=input|output}`·`llm.cost.usd{provider}`·`llm.latency{provider}`(타이머)를 기록. RagService가 LLM 호출을 `System.nanoTime()` 타이머로 감싸 `llmMetrics.record(response, latency)` 호출(C2-2의 로깅을 대체). 비용은 provider별 단가맵(ollama·gemini 무료=0, Sonnet 등 유료는 추가). **결정적 단위테스트 2개**(`LlmMetricsTest`, SimpleMeterRegistry+Mockito — Ollama 불필요) → **전체 15 그린**. /actuator/prometheus 노출. **Grafana 패널 4개 추가**(`rag-observability.json`: 토큰·지연 p95/p99·비용·호출, provider별; `management`에 `llm.latency` 히스토그램 켬) — JSON 유효 검증. 남음(실행 시): 스택+Ollama 띄워 패널 렌더·실지표 관찰(C2-5와 함께).
 - [x] C2-4 ✅ (2026-07-10): LLM 호출을 `LlmCallGuard`로 격리 — **동시성 세마포어**(`max-concurrent`, 획득 실패 시 BUSY)·**호출 타임아웃**(`call-timeout-ms`, 초과 시 TIMEOUT, 가상스레드 executor+future.cancel). 실패는 `LlmUnavailableException` → RagService가 **`RagResult.Degraded`**(검색된 근거 sources는 그대로 제공)로 폴백, AskController가 200 응답. `llm.degraded{provider,reason}` 지표. **실제 LLM 오류는 원인 그대로 전파해 LlmError 유지**(폴백과 구분). **장애 주입 단위테스트 4개**(`LlmCallGuardTest`: 타임아웃·세마포어소진(latch)·정상·실제오류전파 — Ollama 불필요) → **전체 19 그린**. 설정 `askwiki.llm.{max-concurrent:8,call-timeout-ms:20000,acquire-timeout-ms:2000}`. 구 B4 흡수.
-- [ ] C2-5: B2 하네스로 프로바이더별 비교 — 환각률·오거부율·hit·토큰·비용·지연. Ollama(65%/60%) vs 상용. **환각 바닥 돌파 증명**. design-notes 표.
+- [x] C2-5 ✅ (2026-07-12): B2 하네스로 프로바이더별 비교 — 환각률·오거부율·hit·토큰·비용·지연. Ollama vs 상용. **환각 바닥 돌파 증명 완료**. design-notes §4 표.
     - **1차 진행 (2026-07-12, 맥)**: ① 하네스 보강 — `[LLM-USAGE]` 요약(호출·degraded·토큰·비용·지연, provider 태그)·pacing 노브(`askwiki.eval.pacing-ms`)·evalTest 캐시 무효화(`outputs.upToDateWhen false`)·gradlew exec bit 복원. ② **Ollama 재기준선(같은 날·같은 머신 비교용): 환각 75.0%·오거부 10.0%**, 토큰 in 50,885/out 3,190, 지연 mean 8.8s/max 44.3s — B2(60%/3.3%)와의 차이는 실행 간 요동, 구간(60~75%)으로 해석. ③ **Gemini 2.5 무료 경로 실측으로 닫힘**: 2.5-flash **RPM 5·RPD 20**(50문항 러너 불가), 2.5-flash-lite 신규 사용자 차단, Spring AI는 429 비재시도. 3.1-flash-lite·3.5-flash 프로브 OK(`reasoning_effort:none` 정상). 실행 조건: 모델 warm-up + `ASKWIKI_LLM_CALL_TIMEOUT_MS=120000`(콜드 로드가 C2-4 가드 20s에 걸림) + Gemini `ASKWIKI_EVAL_PACING_MS=13000`. 함정 상세 design-notes §4.
-    - **다음 세션 결정 (연우님)**: Gemini 측정 경로 — **3.x 무료**(gemini-3.5-flash 시도→429 시 3.1-flash-lite 폴백, 코드 변경 없이 env `SPRING_AI_OPENAI_CHAT_OPTIONS_MODEL`로 오버라이드) vs **유료 Tier 1**(AI Studio 결제 연결) vs Claude escalation. 계정별 한도는 https://aistudio.google.com/rate-limit 에서 사전 확인 가능. 채택 모델 확정 시 application.yml 기본 모델·C2 문서의 "gemini-2.5-flash" 표기 갱신 필요.
+    - **✅ 완료 (2026-07-12)**: 계정 한도표 확인 결과 3.5-flash도 무료 RPD 20 → **gemini-3.1-flash-lite(RPM 15·RPD 500)가 유일한 무료 완주 경로**로 확정·측정. **환각 0.0%(0/20)·오거부 6.7%(2/30)** vs 같은 날 Ollama 기준선 75.0%/10.0% — **바닥 돌파 + 두 지표 동시 개선**(B2 "진짜 레버는 모델" 진단 증명, 프롬프트와 달리 트레이드오프 곡선 자체를 밀었음). 지연 mean 637ms(vs 8,823ms CPU 추론), 출력 토큰 658(vs 3,190 — 1/5), 비용 $0. hit rate는 임베딩(nomic) 고정이라 프로바이더 무관(93.3% 유지). application.yml 기본 Gemini 모델 `gemini-3.1-flash-lite` 확정(회귀 19 그린). 비교표·해석·정직한 각주는 design-notes §4.
 - [ ] (선택) 저비용 단일 인스턴스 배포 — 상용 API로 Ollama 컨테이너 없이 경량 배포(백로그 배포 과제 해소).
 
 ### 측정할 숫자 (목표)
 
-- 환각률/오거부율: Ollama 65%/60% → 상용 모델 **재측정**(바닥 돌파 여부가 핵심 결과). `HallucinationEvalTest`를 프로바이더별 실행.
-- 프로바이더별 토큰(입력/출력)·추정 비용·응답 지연 비교표.
-- 장애 주입: LLM 타임아웃/kill 시 degraded 폴백 동작·세마포어로 과부하 차단 확인.
+- 환각률/오거부율: ✅ 실측 — 같은 날 기준선 Ollama **75.0%/10.0%** → Gemini 3.1 Flash Lite **0.0%/6.7%** (바닥 돌파 + 동시 개선, 2026-07-12).
+- 프로바이더별 토큰(입력/출력)·추정 비용·응답 지연 비교표: ✅ design-notes §4 (지연 637ms vs 8,823ms(CPU), 출력 토큰 1/5, 비용 $0/$0).
+- 장애 주입: ✅ C2-4 단위테스트 4개(타임아웃·세마포어·degraded·오류 전파) + C2-5 실전에서 가드·degraded 경로 실동작 확인(콜드 로드 함정).
 
 ### 학습 확인 질문 (면접 대비)
 
