@@ -55,8 +55,12 @@ spring:
           reasoning-effort: none
 
 askwiki:
+  vector-index:
+    impl: ${VECTOR_INDEX_IMPL:memory}
   es:
     url: ${ES_URL:http://localhost:9200}
+    index: askwiki-chunks
+    refresh-on-write: false
   llm:
     provider: ${ASKWIKI_LLM_PROVIDER:ollama}
     # 장애격리 (C2-4): 동시 호출 상한(세마포어)·호출 타임아웃·세마포어 획득 대기.

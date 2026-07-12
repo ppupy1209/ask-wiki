@@ -51,7 +51,6 @@ public class InMemoryVectorIndex implements VectorIndex {
     }
 
     /** 앱 시작 시 1회 전체 로드. 이후 수동 호출로도 재빌드 가능. */
-    @EventListener(ApplicationReadyEvent.class)
     public int rebuild() {
         List<Entry> next = new ArrayList<>();
         for (Chunk c : chunkRepository.findAllByOrderByIdAsc()) {
@@ -59,6 +58,15 @@ public class InMemoryVectorIndex implements VectorIndex {
         }
         entriesRef.set(next);
         return next.size();
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void rebuildOnApplicationReady(ApplicationReadyEvent event) {
+        String implementation = event.getApplicationContext().getEnvironment()
+                .getProperty("askwiki.vector-index.impl", "memory");
+        if ("memory".equals(implementation)) {
+            rebuild();
+        }
     }
 
     /** 문서 생성 시 새 청크를 증분 추가(전체 재빌드 없이). */
