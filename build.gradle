@@ -69,6 +69,8 @@ tasks.register('evalTest', Test) {
     systemProperty 'api.version', '1.44'
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
+    // 20k 스케일 벤치는 인메모리 인덱스(20k×768 float)와 정답 대조를 한 프로세스에 올려 기본 워커 힙(~512m)엔 빠듯하다.
+    maxHeapSize = '2g'
     // 평가 러너는 비결정적(실제 LLM)이고 프로바이더를 env로 바꿔 재실행하는 게 핵심 사용 패턴 —
     // up-to-date 캐시가 이전 리포트를 재사용하면 다른 프로바이더 결과로 오인할 수 있어 항상 실행한다.
     outputs.upToDateWhen { false }
