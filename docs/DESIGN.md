@@ -37,7 +37,8 @@ com.yeonwoo.askwiki
 ├─ embedding/    Ollama 임베딩 클라이언트 래퍼, 청크 임베딩         [Codex]
 ├─ search/       청크 벡터 유사도 검색 (study ③)                    [Codex 골격]
 ├─ rag/          검색→프롬프트 조립→LLM 호출 오케스트레이션 (study ②) [연우님 TODO]
-├─ ask/          POST /api/ask 컨트롤러 - 동시성 핫스팟 (study ①)   [Codex 골격 + 연우님 튜닝]
+├─ ask/          POST /api/ask 컨트롤러 + AskService(캐시+RAG 오케스트레이션) - 동시성 핫스팟 (study ①) [Codex 골격 + 연우님 튜닝]
+├─ mcp/          MCP 서버 - search_wiki·ask_wiki @Tool 노출 (C4)      [Claude 설계·Codex 구현]
 ├─ cache/        질의·임베딩 캐시 (study ④)                          [Codex]
 ├─ config/       Spring AI·Virtual Threads·관측성 설정              [Codex]
 └─ common/       record DTO, sealed 결과 타입, 예외 처리            [Codex]
@@ -52,9 +53,12 @@ com.yeonwoo.askwiki
 | GET | `/api/documents` | - | `[{ "id", "title", "chunkCount", "createdAt" }]` |
 | DELETE | `/api/documents/{id}` | - | 204 |
 | POST | `/api/ask` | `{ "question": string, "topK"?: int=4 }` | `{ "answer", "sources": [{ "documentId","title","chunkSeq","score" }], "latencyMs", "cached" }` |
+| SSE | `/sse` + `/mcp/message` | MCP(JSON-RPC) | MCP 툴 `search_wiki`(검색만)·`ask_wiki`(RAG 답변) 노출 — Spring AI MCP 서버(C4) |
 | GET | `/actuator/prometheus` | - | Prometheus metrics |
 
 모든 요청/응답 DTO는 **Java record**. LLM/검색 결과는 **sealed interface + 패턴 매칭**으로 성공/실패 표현.
+
+> **MCP 서버(C4)**는 새 검색 스택을 만들지 않고 검증된 자산을 재사용한다: `ask_wiki`는 `ask/AskService`(캐시+RAG 오케스트레이션, `/api/ask`와 공유)를, `search_wiki`는 C1 `VectorIndex`(ES kNN) 검색을 그대로 호출한다. 트랜스포트는 WebMVC SSE(서블릿), `spring-ai-starter-mcp-server-webmvc`(BOM 1.0.9 관리).
 
 ## 5. 데이터 모델 (Flyway `V1__init.sql`, `V2__index_outbox.sql`)
 
