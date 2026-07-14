@@ -61,6 +61,8 @@ spring:
           reasoning-effort: none
 
 askwiki:
+  routing:
+    enabled: ${ASKWIKI_ROUTING_ENABLED:false}  # C3-2 질문 분류/라우팅 게이트: 결정적 테스트 스위트 앞에 분류 LLM 호출이 추가되므로 기본 비활성화
   vector-index:
     impl: ${VECTOR_INDEX_IMPL:memory}
   es:

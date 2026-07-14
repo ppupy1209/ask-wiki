@@ -50,6 +50,7 @@ public class WikiMcpTools {
             case RagResult.NoContext ignored -> new WikiAnswer("관련 문서를 찾지 못했습니다.", List.of());
             case RagResult.Degraded degraded -> new WikiAnswer(degraded.message(), degraded.sources());
             case RagResult.LlmError error -> new WikiAnswer("답변 생성 중 오류가 발생했습니다: " + error.message(), List.of());
+            case RagResult.Clarify clarify -> new WikiAnswer(clarify.message(), List.of());
         };
     }
 }

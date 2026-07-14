@@ -58,6 +58,12 @@ public class AskController {
                     elapsedMillis(startNanos),
                     outcome.cached()
             ));
+            case RagResult.Clarify clarify -> ResponseEntity.ok(new AskResponse(
+                    clarify.message(),
+                    List.of(),
+                    elapsedMillis(startNanos),
+                    outcome.cached()
+            ));
         };
     }
 

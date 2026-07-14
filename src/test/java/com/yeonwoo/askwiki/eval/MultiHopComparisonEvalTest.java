@@ -141,13 +141,14 @@ class MultiHopComparisonEvalTest {
         }
     }
 
-    /** Answered→답변, NoContext/Degraded→""(사실 미포함), LlmError→null(에러). */
+    /** Answered→답변, NoContext/Degraded/Clarify→""(사실 미포함), LlmError→null(에러). */
     private String answerText(RagResult r) {
         return switch (r) {
             case RagResult.Answered a -> a.answer();
             case RagResult.NoContext n -> "";
             case RagResult.Degraded d -> "";
             case RagResult.LlmError e -> null;
+            case RagResult.Clarify c -> "";
         };
     }
 

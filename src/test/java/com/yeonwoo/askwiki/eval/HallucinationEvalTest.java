@@ -173,6 +173,7 @@ class HallucinationEvalTest {
             case RagResult.NoContext n -> "모르겠습니다";
             case RagResult.LlmError e -> throw new IllegalStateException("LLM error: " + e.message());
             case RagResult.Degraded d -> throw new IllegalStateException("LLM degraded: " + d.message());
+            case RagResult.Clarify c -> throw new IllegalStateException("unexpected Clarify from RagService: " + c.message());
         };
     }
 
