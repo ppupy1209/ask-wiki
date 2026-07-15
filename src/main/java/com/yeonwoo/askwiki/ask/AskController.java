@@ -30,7 +30,7 @@ public class AskController {
         long startNanos = System.nanoTime();
         int topK = request.topK() == null ? DEFAULT_TOP_K : request.topK();
 
-        AskOutcome outcome = askService.ask(request.question(), topK);
+        AskOutcome outcome = askService.ask(request.question(), topK, request.conversationId());
 
         return switch (outcome.result()) {
             case RagResult.Answered answered -> ResponseEntity.ok(new AskResponse(

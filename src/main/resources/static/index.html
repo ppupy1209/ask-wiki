@@ -50,6 +50,7 @@
   .status .dot { width: 7px; height: 7px; border-radius: 50%; background: #c2c7d1; }
   .status.up .dot { background: #12b76a; box-shadow: 0 0 0 3px rgba(18, 183, 106, 0.15); }
   .status.down .dot { background: var(--danger); }
+  .header-actions { display: flex; align-items: center; gap: 12px; }
 
   main { flex: 1; display: flex; min-height: 0; }
 
@@ -227,7 +228,10 @@
     <h1>Ask Wiki</h1>
     <span class="tag">사내 문서 Q&A</span>
   </div>
-  <div id="status" class="status"><span class="dot"></span><span id="status-text">확인 중…</span></div>
+  <div class="header-actions">
+    <button id="new-conversation" class="chip" style="border:none;cursor:pointer" type="button">새 대화</button>
+    <div id="status" class="status"><span class="dot"></span><span id="status-text">확인 중…</span></div>
+  </div>
 </header>
 
 <main>
@@ -286,6 +290,13 @@
   const threadEl = $("thread");
   const innerEl = $("thread-inner");
   const docListEl = $("doc-list");
+  // crypto.randomUUID는 보안 컨텍스트(HTTPS·localhost)에만 있다. 평문 HTTP 배포에서 undefined면
+  // 초기화 중 TypeError로 스크립트 전체가 죽으므로 대화 id 생성에 폴백을 둔다.
+  const newConversationId = () => (crypto.randomUUID
+    ? crypto.randomUUID()
+    : "c-" + Date.now() + "-" + Math.random().toString(16).slice(2));
+  let conversationId = newConversationId();
+  const initialThread = innerEl.innerHTML;
 
   const DOC_ICON = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
   const TRASH_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
@@ -435,6 +446,13 @@
     return { msg, bubble };
   }
 
+  $("new-conversation").addEventListener("click", () => {
+    conversationId = newConversationId();
+    innerEl.innerHTML = initialThread;
+    $("question").focus();
+    threadEl.scrollTop = 0;
+  });
+
   $("ask-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const question = $("question").value.trim();
@@ -448,7 +466,7 @@
       const res = await fetch("/api/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question, conversationId }),
       });
       const data = await res.json();
       bubble.textContent = data.answer ?? data.message ?? `요청 실패 (${res.status})`;
