@@ -11,6 +11,8 @@ import static org.mockito.Mockito.when;
 
 class QuestionRouterTest {
 
+    private static final QuestionRoute WIKI = new QuestionRoute(QuestionType.WIKI, "");
+
     private final ChatModel chatModel = mock(ChatModel.class);
     private final QuestionRouter questionRouter = new QuestionRouter(chatModel);
 
@@ -20,6 +22,28 @@ class QuestionRouterTest {
 
         QuestionRoute route = questionRouter.classify("휴가 신청 방법");
 
-        assertThat(route).isEqualTo(new QuestionRoute(QuestionType.WIKI, ""));
+        assertThat(route).isEqualTo(WIKI);
+    }
+
+    @Test
+    void normalizesUnusableClassificationToWiki() {
+        // 비-WIKI인데 message가 비면 사용자에게 내보낼 응답이 없다 → 이행 불가 → 분류 실패와 동일하게 검색으로.
+        assertThat(QuestionRouter.normalize(null)).isEqualTo(WIKI);
+        assertThat(QuestionRouter.normalize(new QuestionRoute(null, "타입 없음"))).isEqualTo(WIKI);
+        assertThat(QuestionRouter.normalize(new QuestionRoute(QuestionType.CHITCHAT, null))).isEqualTo(WIKI);
+        assertThat(QuestionRouter.normalize(new QuestionRoute(QuestionType.CHITCHAT, "   "))).isEqualTo(WIKI);
+        assertThat(QuestionRouter.normalize(new QuestionRoute(QuestionType.AMBIGUOUS, null))).isEqualTo(WIKI);
+        assertThat(QuestionRouter.normalize(new QuestionRoute(QuestionType.AMBIGUOUS, ""))).isEqualTo(WIKI);
+    }
+
+    @Test
+    void keepsUsableClassificationAsIs() {
+        QuestionRoute chitchat = new QuestionRoute(QuestionType.CHITCHAT, "안녕하세요. 무엇을 도와드릴까요?");
+        QuestionRoute ambiguous = new QuestionRoute(QuestionType.AMBIGUOUS, "어떤 규정을 말씀하시나요?");
+
+        assertThat(QuestionRouter.normalize(chitchat)).isSameAs(chitchat);
+        assertThat(QuestionRouter.normalize(ambiguous)).isSameAs(ambiguous);
+        // WIKI는 message를 쓰지 않으므로 비어 있어도 그대로 통과한다.
+        assertThat(QuestionRouter.normalize(WIKI)).isSameAs(WIKI);
     }
 }

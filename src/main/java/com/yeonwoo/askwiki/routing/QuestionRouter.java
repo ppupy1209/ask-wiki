@@ -22,6 +22,9 @@ public class QuestionRouter {
             판단이 애매하면 WIKI로 분류하세요. 검색이 기본 경로입니다.
             """;
 
+    /** 분류 실패·이행 불가 시의 기본 경로 — 검색(WIKI)으로 열어 둔다. */
+    private static final QuestionRoute FALLBACK_TO_WIKI = new QuestionRoute(QuestionType.WIKI, "");
+
     private final ChatModel chatModel;
 
     public QuestionRouter(ChatModel chatModel) {
@@ -30,19 +33,33 @@ public class QuestionRouter {
 
     public QuestionRoute classify(String question) {
         try {
-            QuestionRoute route = ChatClient.create(chatModel)
+            return normalize(ChatClient.create(chatModel)
                     .prompt()
                     .system(ROUTING_SYSTEM_PROMPT)
                     .user(question)
                     .call()
-                    .entity(QuestionRoute.class);
-            if (route == null || route.type() == null) {
-                return new QuestionRoute(QuestionType.WIKI, "");
-            }
-            return route;
+                    .entity(QuestionRoute.class));
         } catch (Exception e) {
             // 라우팅이 새로운 장애 지점이 되어서는 안 되므로 WIKI로 열어 둔다.
-            return new QuestionRoute(QuestionType.WIKI, "");
+            return FALLBACK_TO_WIKI;
         }
+    }
+
+    /**
+     * 분류 결과를 이행 가능한 형태로 정규화한다. 비-WIKI 경로는 message가 그대로 사용자 응답이 되므로,
+     * type이나 message가 비어 있으면 그 분류는 이행할 수 없다 → 분류 실패와 동일하게 WIKI로 열어 둔다.
+     * (WIKI는 message를 쓰지 않으므로 비어 있어도 그대로 둔다.)
+     *
+     * <p>{@code ChatClient.entity()} 성공 경로는 목 ChatModel로 구동할 수 없어, 순수 함수로 분리해
+     * 결정적으로 검증한다. {@code AgenticRagService.mapResult}와 같은 이유·같은 패턴.</p>
+     */
+    static QuestionRoute normalize(QuestionRoute route) {
+        if (route == null || route.type() == null) {
+            return FALLBACK_TO_WIKI;
+        }
+        if (route.type() != QuestionType.WIKI && (route.message() == null || route.message().isBlank())) {
+            return FALLBACK_TO_WIKI;
+        }
+        return route;
     }
 }
