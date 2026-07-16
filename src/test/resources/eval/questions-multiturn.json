@@ -1,5 +1,5 @@
 {
-  "_comment": "C3-3 멀티턴 재작성 A/B용 골든셋. 각 항목은 2턴 대화다: turn1(주제를 세우는 질문) + turn1Answer(대화 기록에 넣을 도우미 답변, 코퍼스 사실에 근거) + followUp(문맥 의존 후속 질문). 측정: followUp을 (OFF) 그대로 임베딩 vs (ON) 재작성 후 임베딩 → expectedDocSlug가 topK에 잡히는가. turn1Answer를 스크립트로 고정한 이유: 재작성만을 변수로 두기 위해(turn1의 답변 품질이 결과에 섞이지 않게) — C2의 '임베딩 고정' 통제와 같은 규칙. anchor 필드는 리깅 방지용 자기점검: none=followUp에 주제어가 전혀 없음(재작성 없으면 검색 불가), weak=주제어 일부가 남아 재작성 없이도 맞을 수 있음. 의도적으로 섞었다.",
+  "_comment": "C3-3 멀티턴 재작성 A/B용 골든셋. 각 항목은 2턴 대화다: turn1(주제를 세우는 질문) + turn1Answer(대화 기록에 넣을 도우미 답변, 코퍼스 사실에 근거) + followUp(문맥 의존 후속 질문). 측정: followUp을 (OFF) 그대로 임베딩 vs (ON) 재작성 후 임베딩 → expectedDocSlug가 topK에 잡히는가. turn1Answer를 스크립트로 고정한 이유: 재작성만을 변수로 두기 위해(turn1의 답변 품질이 결과에 섞이지 않게) — C2의 '임베딩 고정' 통제와 같은 규칙. anchor 필드는 리깅 방지용 자기점검이며 보고용 층화(strata)일 뿐 A/B의 입력이 아니다(라벨을 바꿔도 전체 hit rate는 불변): none=followUp에 기대 문서로 이어질 검색 키가 없음, weak=키 일부가 남아 재작성 없이도 맞을 수 있음. 의도적으로 섞었다. 2026-07-14 독립 검수 반영: salary-payday-holiday를 none→weak로 정정(아래 note) → 현재 none 4 / weak 4. 주의: none의 '재작성 없으면 검색 불가'는 의도이지 보장이 아니다 — 실측에서 none 항목 4개 중 2개(welfare·onboarding)가 재작성 없이도 @4에 잡혔다. 그리고 항목 수가 4/4로 작아 층화 비교는 방향 참고용일 뿐 통계적 변별력이 없다(1건 = 25pp).",
   "multiTurn": [
     {
       "id": "salary-payday-holiday",
@@ -7,7 +7,8 @@
       "turn1Answer": "급여는 매월 25일에 지급됩니다.",
       "followUp": "그날이 휴일이면요?",
       "expectedDocSlug": "salary",
-      "anchor": "none"
+      "anchor": "weak",
+      "note": "독립 검수(2026-07-14)에서 none→weak 정정: '휴일'이 코퍼스 전체에서 salary.md 단 한 줄('25일이 휴일인 경우 직전 영업일에 지급한다')에만 등장 → 기대 문서에 유일한 검색 키가 남아 있으므로 이 파일 자신의 weak 정의에 해당한다. 최초 라벨(none)은 '급여'라는 주제어만 본 판단 착오."
     },
     {
       "id": "security-password-rotation",
