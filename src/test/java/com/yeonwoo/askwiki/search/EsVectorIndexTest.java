@@ -31,9 +31,6 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
 
 @SpringBootTest
 @Testcontainers
@@ -204,7 +201,7 @@ class EsVectorIndexTest {
         Chunk chunk = saveChunk(saveDocument("missing content"), 0, "rebuild must restore this content", chunkVector);
         indexWithoutContent(chunk, chunkVector);
 
-        hybridVectorIndex().rebuildForHybridSearchIfContentMissing();
+        hybridVectorIndex().rebuildForHybridSearch();
 
         GetResponse<Map> response = elasticsearchClient.get(get -> get
                 .index(indexName)
@@ -214,14 +211,38 @@ class EsVectorIndexTest {
     }
 
     @Test
-    void hybridStartupSkipsRebuildWhenAllIndexedChunksHaveContent() {
-        Chunk chunk = saveChunk(saveDocument("complete content"), 0, "content is already indexed", vector(0, 1.0f));
-        vectorIndex.add(chunk);
-        EsVectorIndex hybridIndex = spy(hybridVectorIndex());
+    void hybridStartupIndexesExistingChunksWhenTheIndexIsMissing() throws Exception {
+        Chunk chunk = saveChunk(saveDocument("no index yet"), 0, "hybrid must be able to find this", vector(0, 1.0f));
+        elasticsearchClient.indices().delete(delete -> delete.index(indexName));
 
-        hybridIndex.rebuildForHybridSearchIfContentMissing();
+        hybridVectorIndex().rebuildForHybridSearch();
 
-        verify(hybridIndex, never()).rebuild();
+        GetResponse<Map> response = elasticsearchClient.get(get -> get
+                .index(indexName)
+                .id(chunk.getId().toString()), Map.class);
+        assertTrue(response.found());
+        assertEquals(chunk.getContent(), response.source().get("content"));
+    }
+
+    @Test
+    void hybridStartupDropsIndexedChunksThatNoLongerExistInTheDatabase() throws Exception {
+        Chunk stale = saveChunk(saveDocument("earlier corpus"), 0, "stale chunk", vector(0, 1.0f));
+        vectorIndex.add(stale);
+        Long staleId = stale.getId();
+        chunkRepository.deleteAll();
+        documentRepository.deleteAll();
+        Chunk current = saveChunk(saveDocument("current corpus"), 0, "current chunk", vector(0, 1.0f));
+
+        hybridVectorIndex().rebuildForHybridSearch();
+
+        // The stale chunk left the index at the database's own count, so a count check cannot detect it.
+        assertEquals(1, vectorIndex.size());
+        assertFalse(elasticsearchClient.get(get -> get
+                .index(indexName)
+                .id(staleId.toString()), Map.class).found());
+        assertTrue(elasticsearchClient.get(get -> get
+                .index(indexName)
+                .id(current.getId().toString()), Map.class).found());
     }
 
     private Document saveDocument(String title) {

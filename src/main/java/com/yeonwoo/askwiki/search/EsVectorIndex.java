@@ -188,35 +188,24 @@ public class EsVectorIndex implements VectorIndex {
     }
 
     /**
-     * On application startup, old indexes are rebuilt only when hybrid search is actively used
-     * and indexed documents actually lack content. Mapping inspection is insufficient because a
-     * later dynamic write can create the field while older documents remain incomplete.
+     * Rebuilds the index on startup whenever hybrid search is on, so the switch always starts from an
+     * index that agrees with MySQL. Narrower triggers cannot detect every disagreement: a missing index
+     * leaves existing chunks unsearchable, and chunks left from an earlier corpus can match MySQL's
+     * count while holding different ids. The index is derived data, and this rebuild is charged only to
+     * whoever turns hybrid on — the kNN-only default keeps Elasticsearch's zero-rebuild startup.
      */
     @EventListener(ApplicationReadyEvent.class)
-    public void rebuildForHybridSearchIfContentMissing() {
+    public void rebuildForHybridSearch() {
         if (!hybridSearchEnabled || !"elasticsearch".equals(vectorIndexImplementation)) {
             return;
         }
 
         try {
-            if (!indexExists()) {
-                // add() creates a new index on its normal write path; do not create one on startup.
-                return;
-            }
-
-            long documentsMissingContent = execute("count Elasticsearch chunks without content", () -> client.count(count -> count
-                    .index(indexName)
-                    .query(query -> query.bool(bool -> bool
-                            .mustNot(mustNot -> mustNot.exists(exists -> exists.field("content"))))))
-                    .count());
-            if (documentsMissingContent > 0) {
-                log.info("Rebuilding Elasticsearch index {} because {} chunks lack content for hybrid search",
-                        indexName, documentsMissingContent);
-                rebuild();
-            }
+            int indexedChunks = rebuild();
+            log.info("Rebuilt Elasticsearch index {} with {} chunks for hybrid search", indexName, indexedChunks);
         } catch (RuntimeException exception) {
             // Elasticsearch is intentionally lazy at startup; a temporary outage must not stop the app.
-            log.warn("Could not verify Elasticsearch content for hybrid-search reindex; continuing startup", exception);
+            log.warn("Could not rebuild Elasticsearch index for hybrid search; continuing startup", exception);
         }
     }
 
