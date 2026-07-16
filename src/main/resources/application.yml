@@ -19,6 +19,10 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+  elasticsearch:
+    # actuator ES 헬스 인디케이터가 쓰는 Boot 표준 프로퍼티. 앱의 ES 클라이언트(askwiki.es.url)와 별개라
+    # 안 맞추면 컨테이너 안에서 localhost:9200을 찔러 health가 DOWN으로 뜬다(웹 UI 헤더 점도 빨강).
+    uris: ${ES_URL:http://localhost:9200}
   threads:
     virtual:
       enabled: ${SPRING_THREADS_VIRTUAL_ENABLED:false}
