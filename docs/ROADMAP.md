@@ -451,7 +451,7 @@
 - [x] 정직성 규칙 준수 ✅ — 실측만·측정 환경 명시·정직한 한계 명기(`agentic-rag-limit`은 미증명 그대로, `multi-turn-rewrite`는 작은 코퍼스 한계 명시). **채용·이직 프레이밍은 전면 배제하고 학습 목적을 명시**(연우님 지시).
 - [x] **웹 UI 채팅 화면 캡처** ✅ (2026-07-17 재촬영·커밋 — 2026-07-16 촬영분은 **커밋 누락으로 공개 페이지가 깨져 있었다**). 맥 사본 `/Users/kimyeonwoo/yeonwoo-dev`의 브랜치 `fix/web-ask-wiki-chat-capture` 커밋 `3179a1c` → `web/public/projects/ask-wiki-chat.png`. **미푸시 = PR 필요(연우님).** 조건: Gemini + **하이브리드 on** · 찍기 전 `FLUSHALL` · 2턴 정답 · 출처 4개(두 턴 다 `급여 규정` 1위) · 실지연 922ms/1.2s. 턴 2가 C3-3을 그림으로 보여준다(`"그날이 휴일이면요?"` → `"급여 지급일인 25일이 휴일인 경우…"`).
 - [ ] (결정) Virtual Threads·Redis 캐시 devlog 추가 여부 — 지금은 뺐음(`realtime-sensor-pipeline`과 결 겹침·RAG 서사 밖). 추가 시 Grafana 캡처 필요(`docs/images/vthreads-*.png` 재활용 가능).
-- [ ] 이력서 반영: Skills(Spring AI·Elasticsearch·k6·Grafana 등) + 프로젝트 한 줄 → `personal`의 `web/content/resume.json` · `output/pdf/`
+- [x] 이력서 반영 ✅ (2026-07-17) — 브랜치 `feat/web-resume-ask-wiki`(`a4d3f42`·`dfcb146`), **미푸시 = PR 필요**. 프로젝트 `Ask Wiki · 사내 문서 RAG 챗봇`을 CHIP·THRONE 뒤(side→study 순서)에 **두 줄**로: 환각률 **75%→0%**(golden set 하네스) · hit rate@1 **36.7%→90.0%**(BM25+kNN RRF). Skills는 Spring AI·Elasticsearch·Grafana·Prometheus **전부 Exposure**(연우님 판정 — 학습 목적 한 건에서 쓴 기술이라는 정직한 배치. k6는 이미 Familiar에 있었다). PDF 재생성 → **1페이지 유지 확인**.
 - [x] ~~Products 등재 조건(실제 상시 운영·데모 가능한 배포)~~ — **해당 없음.** 배포하지 않기로 결정(2026-07-16, 로컬 실행만). 최종 분류는 **`category: side`**(당초 이 근거로 `study`를 골랐으나, 이후 사이트 섹션·내비 재편에서 `side`로 바뀜 — 2026-07-16 연우님 확인, 의도한 변경. 형제 `chipthrone`과 같은 분류).
 
 ## 세션 시작 프롬프트 (복붙용)
