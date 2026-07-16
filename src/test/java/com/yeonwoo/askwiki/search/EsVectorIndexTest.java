@@ -24,12 +24,16 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 @SpringBootTest
 @Testcontainers
@@ -152,6 +156,74 @@ class EsVectorIndexTest {
         assertEquals(chunk.getContent(), response.source().get("content"));
     }
 
+    @Test
+    void hybridSwitchOffKeepsKnnResultsIdenticalWhenQueryTextIsPresent() {
+        Document document = saveDocument("hybrid off");
+        vectorIndex.add(saveChunk(document, 0, "lexical-only-term", vector(1, 1.0f)));
+        vectorIndex.add(saveChunk(document, 1, "semantic match", vector(0, 1.0f)));
+
+        List<ChunkMatch> knnOnly = vectorIndex.search(null, vector(0, 1.0f), 2);
+        List<ChunkMatch> queryTextProvided = vectorIndex.search("lexical-only-term", vector(0, 1.0f), 2);
+
+        assertEquals(knnOnly, queryTextProvided);
+    }
+
+    @Test
+    void hybridSearchSurfacesLexicalMatchThatKnnRanksLast() {
+        Document document = saveDocument("hybrid lexical");
+        Chunk lexicalOnly = saveChunk(document, 0, "lexical-only-term is documented here", vector(1, 1.0f));
+        Chunk semanticBest = saveChunk(document, 1, "semantic result", vector(0, 1.0f));
+        Chunk semanticSecond = saveChunk(document, 2, "another semantic result", vector(0, 0.9f, 2, 0.1f));
+        vectorIndex.add(lexicalOnly);
+        vectorIndex.add(semanticBest);
+        vectorIndex.add(semanticSecond);
+
+        List<ChunkMatch> knnOnly = vectorIndex.search(null, vector(0, 1.0f), 3);
+        List<ChunkMatch> hybrid = hybridVectorIndex().search("lexical-only-term", vector(0, 1.0f), 1);
+
+        assertEquals(lexicalOnly.getId(), knnOnly.getLast().chunkId());
+        assertEquals(lexicalOnly.getId(), hybrid.getFirst().chunkId());
+        assertTrue(hybrid.getFirst().score() > 0.0 && hybrid.getFirst().score() < 0.1);
+    }
+
+    @Test
+    void hybridSearchWithNullQueryTextFallsBackToKnn() {
+        Document document = saveDocument("null query text");
+        vectorIndex.add(saveChunk(document, 0, "first", vector(0, 1.0f)));
+        vectorIndex.add(saveChunk(document, 1, "second", vector(1, 1.0f)));
+
+        List<ChunkMatch> expected = vectorIndex.search(null, vector(0, 1.0f), 2);
+        List<ChunkMatch> actual = hybridVectorIndex().search(null, vector(0, 1.0f), 2);
+
+        assertEquals(expected, actual);
+    }
+
+    @Test
+    void hybridStartupRebuildsAnExistingIndexWhenContentIsMissing() throws Exception {
+        float[] chunkVector = vector(0, 1.0f);
+        Chunk chunk = saveChunk(saveDocument("missing content"), 0, "rebuild must restore this content", chunkVector);
+        indexWithoutContent(chunk, chunkVector);
+
+        hybridVectorIndex().rebuildForHybridSearchIfContentMissing();
+
+        GetResponse<Map> response = elasticsearchClient.get(get -> get
+                .index(indexName)
+                .id(chunk.getId().toString()), Map.class);
+        assertTrue(response.found());
+        assertEquals(chunk.getContent(), response.source().get("content"));
+    }
+
+    @Test
+    void hybridStartupSkipsRebuildWhenAllIndexedChunksHaveContent() {
+        Chunk chunk = saveChunk(saveDocument("complete content"), 0, "content is already indexed", vector(0, 1.0f));
+        vectorIndex.add(chunk);
+        EsVectorIndex hybridIndex = spy(hybridVectorIndex());
+
+        hybridIndex.rebuildForHybridSearchIfContentMissing();
+
+        verify(hybridIndex, never()).rebuild();
+    }
+
     private Document saveDocument(String title) {
         return documentRepository.save(new Document(title, "test"));
     }
@@ -160,6 +232,30 @@ class EsVectorIndexTest {
         return chunkRepository.save(new Chunk(
                 document.getId(), seq, content, embeddingCodec.serialize(vector), vector.length
         ));
+    }
+
+    private EsVectorIndex hybridVectorIndex() {
+        return new EsVectorIndex(elasticsearchClient, embeddingCodec, chunkRepository, documentRepository,
+                indexName, true, true, "elasticsearch");
+    }
+
+    private void indexWithoutContent(Chunk chunk, float[] vector) throws Exception {
+        elasticsearchClient.index(index -> index
+                .index(indexName)
+                .id(chunk.getId().toString())
+                .document(Map.of(
+                        "documentId", chunk.getDocumentId(),
+                        "seq", chunk.getSeq(),
+                        "vector", vectorValues(vector))));
+        elasticsearchClient.indices().refresh(refresh -> refresh.index(indexName));
+    }
+
+    private List<Float> vectorValues(float[] vector) {
+        List<Float> values = new ArrayList<>(vector.length);
+        for (float value : vector) {
+            values.add(value);
+        }
+        return values;
     }
 
     private float[] vector(int firstIndex, float firstValue) {

@@ -16,11 +16,17 @@ import com.yeonwoo.askwiki.document.Document;
 import com.yeonwoo.askwiki.document.DocumentRepository;
 import com.yeonwoo.askwiki.embedding.EmbeddingCodec;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -31,7 +37,15 @@ import java.util.stream.Collectors;
 @Component
 public class EsVectorIndex implements VectorIndex {
 
+    private static final Logger log = LoggerFactory.getLogger(EsVectorIndex.class);
     private static final int VECTOR_DIMS = 768;
+    // RRF's conventional k=60 dampens the difference between adjacent ranks while preserving
+    // each retriever's ordering; the value is the standard constant from the original RRF work.
+    private static final int RRF_K = 60;
+    // Each retriever must contribute a wider candidate set than the caller will receive. Five
+    // times topK, with a floor of 50, lets a document rescued by the other retriever compete in
+    // fusion without making small product queries depend on only a few ranks.
+    private static final long HYBRID_CANDIDATE_COUNT_FLOOR = 50;
     // 단일 벌크로 전량을 보내면 N이 커질 때 요청 본문(수백 MB)이 힙과 ES http.max_content_length(기본 100MB)를
     // 넘긴다(20k 스케일 벤치에서 OOM으로 실측). 기본 500자 청크 본문을 더해도 500건은 수 MB 수준이라
     // 벡터 페이로드가 지배적인 기존 배치 크기를 유지하고, 각 벌크 본문을 유계로 둔다.
@@ -39,25 +53,33 @@ public class EsVectorIndex implements VectorIndex {
 
     private record IndexedChunk(Long documentId, int seq, String content, float[] vector) {}
 
+    private record ScoredHit(Hit<IndexedChunk> hit, double score) {}
+
     private final ElasticsearchClient client;
     private final EmbeddingCodec embeddingCodec;
     private final ChunkRepository chunkRepository;
     private final DocumentRepository documentRepository;
     private final String indexName;
     private final boolean refreshOnWrite;
+    private final boolean hybridSearchEnabled;
+    private final String vectorIndexImplementation;
 
     public EsVectorIndex(ElasticsearchClient client,
                          EmbeddingCodec embeddingCodec,
                          ChunkRepository chunkRepository,
                          DocumentRepository documentRepository,
                          @Value("${askwiki.es.index:askwiki-chunks}") String indexName,
-                         @Value("${askwiki.es.refresh-on-write:false}") boolean refreshOnWrite) {
+                         @Value("${askwiki.es.refresh-on-write:false}") boolean refreshOnWrite,
+                         @Value("${askwiki.search.hybrid:false}") boolean hybridSearchEnabled,
+                         @Value("${askwiki.vector-index.impl:memory}") String vectorIndexImplementation) {
         this.client = client;
         this.embeddingCodec = embeddingCodec;
         this.chunkRepository = chunkRepository;
         this.documentRepository = documentRepository;
         this.indexName = indexName;
         this.refreshOnWrite = refreshOnWrite;
+        this.hybridSearchEnabled = hybridSearchEnabled;
+        this.vectorIndexImplementation = vectorIndexImplementation;
     }
 
     @Override
@@ -128,32 +150,123 @@ public class EsVectorIndex implements VectorIndex {
     }
 
     /**
-     * Elasticsearch cosine kNN scores are normalized as (1 + cosine) / 2; convert them back to
-     * cosine so B2 score-distribution comparisons keep InMemoryVectorIndex's [-1, 1] scale.
+     * The kNN-only path converts Elasticsearch's normalized scores back to cosine, preserving
+     * B2's {@code [-1, 1]} score scale. The hybrid path deliberately returns RRF fusion scores:
+     * a fused rank cannot truthfully be represented as a single cosine similarity.
      */
     @Override
     public List<ChunkMatch> search(String queryText, float[] queryVector, int topK) {
-        // B5-1 keeps the existing kNN-only path; B5-2 will use queryText for the BM25 branch.
         if (topK <= 0 || !indexExists()) {
             return List.of();
         }
 
+        if (!hybridSearchEnabled || queryText == null || queryText.isBlank()) {
+            return hydrate(searchKnn(queryVector, topK));
+        }
+
+        long candidateCount = Math.max(HYBRID_CANDIDATE_COUNT_FLOOR, (long) topK * 5);
+        List<Hit<IndexedChunk>> knnHits = searchKnnHits(queryVector, candidateCount);
+        List<Hit<IndexedChunk>> bm25Hits = searchBm25Hits(queryText, candidateCount);
+        return hydrate(fuseWithRrf(knnHits, bm25Hits, topK));
+    }
+
+    /**
+     * On application startup, old indexes are rebuilt only when hybrid search is actively used
+     * and indexed documents actually lack content. Mapping inspection is insufficient because a
+     * later dynamic write can create the field while older documents remain incomplete.
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    public void rebuildForHybridSearchIfContentMissing() {
+        if (!hybridSearchEnabled || !"elasticsearch".equals(vectorIndexImplementation)) {
+            return;
+        }
+
+        try {
+            if (!indexExists()) {
+                // add() creates a new index on its normal write path; do not create one on startup.
+                return;
+            }
+
+            long documentsMissingContent = execute("count Elasticsearch chunks without content", () -> client.count(count -> count
+                    .index(indexName)
+                    .query(query -> query.bool(bool -> bool
+                            .mustNot(mustNot -> mustNot.exists(exists -> exists.field("content"))))))
+                    .count());
+            if (documentsMissingContent > 0) {
+                log.info("Rebuilding Elasticsearch index {} because {} chunks lack content for hybrid search",
+                        indexName, documentsMissingContent);
+                rebuild();
+            }
+        } catch (RuntimeException exception) {
+            // Elasticsearch is intentionally lazy at startup; a temporary outage must not stop the app.
+            log.warn("Could not verify Elasticsearch content for hybrid-search reindex; continuing startup", exception);
+        }
+    }
+
+    private List<ScoredHit> searchKnn(float[] queryVector, int topK) {
+        return searchKnnHits(queryVector, topK).stream()
+                .map(hit -> new ScoredHit(hit, 2.0 * hit.score() - 1.0))
+                .toList();
+    }
+
+    private List<Hit<IndexedChunk>> searchKnnHits(float[] queryVector, long resultSize) {
         SearchResponse<IndexedChunk> response = execute("search Elasticsearch chunks", () -> client.search(search -> search
                 .index(indexName)
                 .knn(knn -> knn
                         .field("vector")
                         .queryVector(toFloatList(queryVector))
-                        .k((long) topK)
-                        .numCandidates(Math.max(100L, topK * 10L)))
+                        .k(resultSize)
+                        .numCandidates(Math.max(100L, resultSize * 10L)))
                 // content is indexed for future BM25, but ChunkMatch remains hydrated from MySQL.
                 .source(source -> source.filter(filter -> filter.includes("documentId", "seq"))), IndexedChunk.class));
-        List<Hit<IndexedChunk>> hits = response.hits().hits();
+        return response.hits().hits();
+    }
+
+    private List<Hit<IndexedChunk>> searchBm25Hits(String queryText, long resultSize) {
+        SearchResponse<IndexedChunk> response = execute("search Elasticsearch chunk content", () -> client.search(search -> search
+                .index(indexName)
+                .query(query -> query.match(match -> match.field("content").query(queryText)))
+                .size((int) resultSize)
+                .source(source -> source.filter(filter -> filter.includes("documentId", "seq"))), IndexedChunk.class));
+        return response.hits().hits();
+    }
+
+    private List<ScoredHit> fuseWithRrf(List<Hit<IndexedChunk>> knnHits,
+                                         List<Hit<IndexedChunk>> bm25Hits,
+                                         int topK) {
+        Map<Long, Hit<IndexedChunk>> hitsByChunkId = new HashMap<>();
+        Map<Long, Double> rrfScores = new HashMap<>();
+        addRrfScores(knnHits, hitsByChunkId, rrfScores);
+        addRrfScores(bm25Hits, hitsByChunkId, rrfScores);
+
+        return rrfScores.entrySet().stream()
+                .map(entry -> new ScoredHit(hitsByChunkId.get(entry.getKey()), entry.getValue()))
+                .sorted(Comparator.comparingDouble(ScoredHit::score).reversed()
+                        .thenComparing(scored -> Long.valueOf(scored.hit().id())))
+                .limit(topK)
+                .toList();
+    }
+
+    private void addRrfScores(List<Hit<IndexedChunk>> hits,
+                              Map<Long, Hit<IndexedChunk>> hitsByChunkId,
+                              Map<Long, Double> rrfScores) {
+        for (int index = 0; index < hits.size(); index++) {
+            Hit<IndexedChunk> hit = hits.get(index);
+            Long chunkId = Long.valueOf(hit.id());
+            hitsByChunkId.putIfAbsent(chunkId, hit);
+            int rank = index + 1;
+            rrfScores.merge(chunkId, 1.0 / (RRF_K + rank), Double::sum);
+        }
+    }
+
+    private List<ChunkMatch> hydrate(List<ScoredHit> hits) {
 
         // Fetch only the k matching rows; the vector index is never hydrated by a full DB scan.
-        List<Long> chunkIds = hits.stream().map(hit -> Long.valueOf(hit.id())).toList();
+        List<Long> chunkIds = hits.stream().map(hit -> Long.valueOf(hit.hit().id())).toList();
         Map<Long, Chunk> chunks = chunkRepository.findAllById(chunkIds).stream()
                 .collect(Collectors.toMap(Chunk::getId, Function.identity()));
         Set<Long> documentIds = hits.stream()
+                .map(ScoredHit::hit)
                 .map(Hit::source)
                 .map(IndexedChunk::documentId)
                 .collect(Collectors.toSet());
@@ -161,16 +274,15 @@ public class EsVectorIndex implements VectorIndex {
                 .collect(Collectors.toMap(Document::getId, Function.identity()));
 
         return hits.stream().map(hit -> {
-            IndexedChunk indexedChunk = hit.source();
-            Long chunkId = Long.valueOf(hit.id());
+            IndexedChunk indexedChunk = hit.hit().source();
+            Long chunkId = Long.valueOf(hit.hit().id());
             String title = Optional.ofNullable(documents.get(indexedChunk.documentId()))
                     .map(Document::getTitle)
                     .orElse("");
             String content = Optional.ofNullable(chunks.get(chunkId))
                     .map(Chunk::getContent)
                     .orElse("");
-            double cosineScore = 2.0 * hit.score() - 1.0;
-            return new ChunkMatch(chunkId, indexedChunk.documentId(), title, indexedChunk.seq(), content, cosineScore);
+            return new ChunkMatch(chunkId, indexedChunk.documentId(), title, indexedChunk.seq(), content, hit.score());
         }).toList();
     }
 
