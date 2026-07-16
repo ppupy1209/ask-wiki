@@ -1,12 +1,18 @@
 package com.yeonwoo.askwiki.routing;
 
+import com.yeonwoo.askwiki.rag.LlmCallGuard;
+import com.yeonwoo.askwiki.rag.LlmMetrics;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class QuestionRouterTest {
@@ -14,7 +20,9 @@ class QuestionRouterTest {
     private static final QuestionRoute WIKI = new QuestionRoute(QuestionType.WIKI, "");
 
     private final ChatModel chatModel = mock(ChatModel.class);
-    private final QuestionRouter questionRouter = new QuestionRouter(chatModel);
+    private final LlmCallGuard llmCallGuard = new LlmCallGuard(8, 20000, 2000);
+    private final LlmMetrics llmMetrics = mock(LlmMetrics.class);
+    private final QuestionRouter questionRouter = new QuestionRouter(chatModel, llmCallGuard, llmMetrics);
 
     @Test
     void fallsOpenToWikiWhenChatClientFails() {
@@ -23,6 +31,20 @@ class QuestionRouterTest {
         QuestionRoute route = questionRouter.classify("휴가 신청 방법");
 
         assertThat(route).isEqualTo(WIKI);
+
+    }
+    @Test
+    void fallsOpenAndRecordsDegradedWhenGuardTimesOut() {
+        LlmCallGuard timeoutGuard = new LlmCallGuard(8, 50, 2000);
+        QuestionRouter router = new QuestionRouter(chatModel, timeoutGuard, llmMetrics);
+        when(chatModel.call(any(Prompt.class))).thenAnswer(inv -> {
+            Thread.sleep(500);
+            return mock(ChatResponse.class);
+        });
+
+        assertThat(router.classify("휴가 신청 방법")).isEqualTo(WIKI);
+
+        verify(llmMetrics).recordDegraded(eq(LlmMetrics.PURPOSE_CLASSIFY), anyString());
     }
 
     @Test

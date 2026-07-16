@@ -15,9 +15,10 @@ import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 /**
- * LLM 호출을 장애로부터 격리한다. (C2-4, 구 B4)
+ * 답변·분류·질문 재작성 등 모든 LLM 작업을 장애로부터 격리한다. (C2-4, 구 B4)
  *
  * <ul>
  *   <li><b>동시성 세마포어</b>: 동시 LLM 호출을 {@code askwiki.llm.max-concurrent}로 제한 → 백엔드 과부하 차단.
@@ -52,7 +53,7 @@ public class LlmCallGuard {
      *
      * @throws LlmUnavailableException 과부하(BUSY)·타임아웃(TIMEOUT) 시
      */
-    public ChatResponse call(ChatModel chatModel, Prompt prompt) {
+    public <T> T call(Supplier<T> operation) {
         boolean acquired;
         try {
             acquired = semaphore.tryAcquire(acquireTimeout.toMillis(), TimeUnit.MILLISECONDS);
@@ -64,7 +65,7 @@ public class LlmCallGuard {
             throw new LlmUnavailableException(LlmUnavailableException.Reason.BUSY, "동시 요청 상한 초과");
         }
 
-        Future<ChatResponse> future = executor.submit(() -> chatModel.call(prompt));
+        Future<T> future = executor.submit(operation::get);
         try {
             return future.get(callTimeout.toMillis(), TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
@@ -84,6 +85,11 @@ public class LlmCallGuard {
         } finally {
             semaphore.release();
         }
+    }
+
+    /** 기존 ChatModel 호출 경로와의 호환을 위한 편의 메서드다. */
+    public ChatResponse call(ChatModel chatModel, Prompt prompt) {
+        return call(() -> chatModel.call(prompt));
     }
 
     @PreDestroy

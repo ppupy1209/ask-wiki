@@ -88,4 +88,30 @@ class LlmCallGuardTest {
                 assertThrows(IllegalStateException.class, () -> guard.call(failing, prompt));
         assertThat(ex).hasMessage("boom");
     }
+
+    @Test
+    void timesOutSlowGenericOperation() {
+        LlmCallGuard guard = new LlmCallGuard(8, 50, 2000);
+
+        LlmUnavailableException ex = assertThrows(LlmUnavailableException.class, () -> guard.call(() -> {
+            try {
+                Thread.sleep(500);
+                return "late";
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return "interrupted";
+            }
+        }));
+
+        assertThat(ex.reason()).isEqualTo(LlmUnavailableException.Reason.TIMEOUT);
+    }
+
+    @Test
+    void propagatesRuntimeExceptionFromGenericOperation() {
+        LlmCallGuard guard = new LlmCallGuard(8, 5000, 2000);
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> guard.call(() -> { throw new RuntimeException("boom"); }));
+        assertThat(ex).hasMessage("boom");
+    }
 }

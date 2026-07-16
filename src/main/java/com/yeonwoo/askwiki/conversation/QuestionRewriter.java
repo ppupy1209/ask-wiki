@@ -1,9 +1,13 @@
 package com.yeonwoo.askwiki.conversation;
 
+import com.yeonwoo.askwiki.rag.LlmCallGuard;
+import com.yeonwoo.askwiki.rag.LlmMetrics;
+import com.yeonwoo.askwiki.rag.LlmUnavailableException;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -22,9 +26,13 @@ public class QuestionRewriter {
             """;
 
     private final ChatModel chatModel;
+    private final LlmCallGuard llmCallGuard;
+    private final LlmMetrics llmMetrics;
 
-    public QuestionRewriter(ChatModel chatModel) {
+    public QuestionRewriter(ChatModel chatModel, LlmCallGuard llmCallGuard, LlmMetrics llmMetrics) {
         this.chatModel = chatModel;
+        this.llmCallGuard = llmCallGuard;
+        this.llmMetrics = llmMetrics;
     }
 
     public String rewrite(String question, List<Message> history) {
@@ -33,16 +41,22 @@ public class QuestionRewriter {
         }
 
         try {
-            String rewritten = ChatClient.create(chatModel)
-                    .prompt()
-                    .system(REWRITE_SYSTEM_PROMPT)
-                    .user(buildUserPrompt(question, history))
-                    .call()
-                    .content();
-            if (rewritten == null || rewritten.isBlank()) {
+            long start = System.nanoTime();
+            ChatResponse response = llmCallGuard.call(() ->
+                    ChatClient.create(chatModel).prompt()
+                            .system(REWRITE_SYSTEM_PROMPT).user(buildUserPrompt(question, history))
+                            .call().chatResponse());
+            // 계측보다 방어 검사가 먼저다 — record()는 response.getMetadata()를 읽으므로 null이면 여기서 NPE가 난다.
+            if (response == null || response.getResult() == null || response.getResult().getOutput() == null) {
                 return question;
             }
-            return rewritten.trim();
+            llmMetrics.record(LlmMetrics.PURPOSE_REWRITE, response, System.nanoTime() - start);
+            String rewritten = response.getResult().getOutput().getText();
+            return (rewritten == null || rewritten.isBlank()) ? question : rewritten.trim();
+        } catch (LlmUnavailableException e) {
+            llmMetrics.recordDegraded(LlmMetrics.PURPOSE_REWRITE,
+                    e.reason().name().toLowerCase(java.util.Locale.ROOT));
+            return question;
         } catch (Exception e) {
             // 재작성도 새로운 장애 지점이 되어서는 안 되므로 원래 질문으로 진행한다.
             return question;

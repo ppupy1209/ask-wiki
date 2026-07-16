@@ -88,14 +88,14 @@ public class RagService {
             // 세마포어·타임아웃으로 보호한 채 호출(C2-4). 호출 지연·토큰 usage는 Micrometer 지표로 기록(C2-3).
             long startNanos = System.nanoTime();
             ChatResponse response = llmCallGuard.call(chatModel, new Prompt(prompt));
-            llmMetrics.record(response, System.nanoTime() - startNanos);
+            llmMetrics.record(LlmMetrics.PURPOSE_ANSWER, response, System.nanoTime() - startNanos);
 
             String answer = response.getResult().getOutput().getText();
             return new RagResult.Answered(answer, sources);
 
         } catch (LlmUnavailableException e) {
             // 타임아웃/과부하 → 하드 실패 대신 degraded: 검색된 근거는 그대로 돌려준다.
-            llmMetrics.recordDegraded(e.reason().name().toLowerCase(Locale.ROOT));
+            llmMetrics.recordDegraded(LlmMetrics.PURPOSE_ANSWER, e.reason().name().toLowerCase(Locale.ROOT));
             return new RagResult.Degraded(
                     "일시적으로 답변 생성이 어렵습니다. 아래 관련 문서를 참고하세요.", sources);
 

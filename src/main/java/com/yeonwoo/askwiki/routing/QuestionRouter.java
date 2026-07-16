@@ -1,7 +1,12 @@
 package com.yeonwoo.askwiki.routing;
 
+import com.yeonwoo.askwiki.rag.LlmCallGuard;
+import com.yeonwoo.askwiki.rag.LlmMetrics;
+import com.yeonwoo.askwiki.rag.LlmUnavailableException;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.ResponseEntity;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -26,19 +31,28 @@ public class QuestionRouter {
     private static final QuestionRoute FALLBACK_TO_WIKI = new QuestionRoute(QuestionType.WIKI, "");
 
     private final ChatModel chatModel;
+    private final LlmCallGuard llmCallGuard;
+    private final LlmMetrics llmMetrics;
 
-    public QuestionRouter(ChatModel chatModel) {
+    public QuestionRouter(ChatModel chatModel, LlmCallGuard llmCallGuard, LlmMetrics llmMetrics) {
         this.chatModel = chatModel;
+        this.llmCallGuard = llmCallGuard;
+        this.llmMetrics = llmMetrics;
     }
 
     public QuestionRoute classify(String question) {
         try {
-            return normalize(ChatClient.create(chatModel)
-                    .prompt()
-                    .system(ROUTING_SYSTEM_PROMPT)
-                    .user(question)
-                    .call()
-                    .entity(QuestionRoute.class));
+            long start = System.nanoTime();
+            ResponseEntity<ChatResponse, QuestionRoute> re = llmCallGuard.call(() ->
+                    ChatClient.create(chatModel).prompt()
+                            .system(ROUTING_SYSTEM_PROMPT).user(question)
+                            .call().responseEntity(QuestionRoute.class));
+            llmMetrics.record(LlmMetrics.PURPOSE_CLASSIFY, re.getResponse(), System.nanoTime() - start);
+            return normalize(re.getEntity());
+        } catch (LlmUnavailableException e) {
+            llmMetrics.recordDegraded(LlmMetrics.PURPOSE_CLASSIFY,
+                    e.reason().name().toLowerCase(java.util.Locale.ROOT));
+            return FALLBACK_TO_WIKI;
         } catch (Exception e) {
             // 라우팅이 새로운 장애 지점이 되어서는 안 되므로 WIKI로 열어 둔다.
             return FALLBACK_TO_WIKI;

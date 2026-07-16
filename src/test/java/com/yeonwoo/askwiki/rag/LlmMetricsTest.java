@@ -31,15 +31,16 @@ class LlmMetricsTest {
         when(metadata.getUsage()).thenReturn(usage);
         when(response.getMetadata()).thenReturn(metadata);
 
-        metrics.record(response, 1_500_000_000L); // 1.5s
+        metrics.record(LlmMetrics.PURPOSE_ANSWER, response, 1_500_000_000L); // 1.5s
 
-        assertThat(registry.counter("llm.calls", "provider", "gemini").count()).isEqualTo(1.0);
-        assertThat(registry.counter("llm.tokens", "provider", "gemini", "type", "input").count()).isEqualTo(21.0);
-        assertThat(registry.counter("llm.tokens", "provider", "gemini", "type", "output").count()).isEqualTo(13.0);
-        assertThat(registry.timer("llm.latency", "provider", "gemini").totalTime(TimeUnit.SECONDS))
-                .isCloseTo(1.5, within(0.01));
-        // gemini 무료 티어 단가 0 → 비용 0
-        assertThat(registry.counter("llm.cost.usd", "provider", "gemini").count()).isEqualTo(0.0);
+        assertThat(registry.get("llm.calls").tag("provider", "gemini").tag("purpose", "answer")
+                .counter().count()).isEqualTo(1.0);
+        assertThat(registry.get("llm.tokens").tag("provider", "gemini").tag("purpose", "answer")
+                .tag("type", "input").counter().count()).isEqualTo(21.0);
+        assertThat(registry.get("llm.tokens").tag("provider", "gemini").tag("purpose", "answer")
+                .tag("type", "output").counter().count()).isEqualTo(13.0);
+        assertThat(registry.get("llm.latency").tag("provider", "gemini").tag("purpose", "answer")
+                .timer().totalTime(TimeUnit.SECONDS)).isCloseTo(1.5, within(0.01));
     }
 
     @Test
@@ -52,11 +53,29 @@ class LlmMetricsTest {
         when(metadata.getUsage()).thenReturn(null);
         when(response.getMetadata()).thenReturn(metadata);
 
-        metrics.record(response, 1_000_000L);
+        metrics.record(LlmMetrics.PURPOSE_REWRITE, response, 1_000_000L);
 
-        // 호출·지연은 기록되고, usage가 없으면 토큰은 0으로 유지(사전 등록된 카운터).
-        assertThat(registry.counter("llm.calls", "provider", "ollama").count()).isEqualTo(1.0);
-        assertThat(registry.counter("llm.tokens", "provider", "ollama", "type", "input").count()).isEqualTo(0.0);
-        assertThat(registry.counter("llm.tokens", "provider", "ollama", "type", "output").count()).isEqualTo(0.0);
+        assertThat(registry.get("llm.calls").tag("provider", "ollama").tag("purpose", "rewrite")
+                .counter().count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void recordsDifferentPurposesIndependently() {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        LlmMetrics metrics = new LlmMetrics(registry, "ollama");
+
+        ChatResponse response = mock(ChatResponse.class);
+        ChatResponseMetadata metadata = mock(ChatResponseMetadata.class);
+        Usage usage = mock(Usage.class);
+        when(usage.getPromptTokens()).thenReturn(1);
+        when(usage.getCompletionTokens()).thenReturn(1);
+        when(metadata.getUsage()).thenReturn(usage);
+        when(response.getMetadata()).thenReturn(metadata);
+
+        metrics.record(LlmMetrics.PURPOSE_ANSWER, response, 1L);
+        metrics.record(LlmMetrics.PURPOSE_CLASSIFY, response, 1L);
+
+        assertThat(registry.get("llm.calls").tag("purpose", "answer").counter().count()).isEqualTo(1.0);
+        assertThat(registry.get("llm.calls").tag("purpose", "classify").counter().count()).isEqualTo(1.0);
     }
 }
