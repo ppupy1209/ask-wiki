@@ -93,8 +93,10 @@ public class InMemoryVectorIndex implements VectorIndex {
         return entriesRef.get().size();
     }
 
-    public List<ChunkMatch> search(float[] query, int topK) {
-        float[] q = normalize(query);
+    @Override
+    public List<ChunkMatch> search(String queryText, float[] queryVector, int topK) {
+        // In-memory index has no lexical-search capability, so B5-1 queryText is intentionally ignored.
+        float[] q = normalize(queryVector);
         List<Entry> snapshot = entriesRef.get();
 
         List<Scored> top = snapshot.stream()

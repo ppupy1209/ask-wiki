@@ -96,7 +96,7 @@ class HitRateEvalTest {
             String difficulty = node.get("difficulty").asText();
 
             float[] qv = embeddingClient.embed(question);
-            List<ChunkMatch> top = vectorIndex.search(qv, 8);
+            List<ChunkMatch> top = vectorIndex.search(question, qv, 8);
             List<Long> topDocIds = top.stream()
                     .map(ChunkMatch::documentId)
                     .toList();

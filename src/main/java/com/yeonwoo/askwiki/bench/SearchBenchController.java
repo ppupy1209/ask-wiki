@@ -92,7 +92,8 @@ public class SearchBenchController {
             long start = System.nanoTime();
             lastMatches = "dbscan".equals(mode)
                     ? searchService.findSimilar(query, topK).size()
-                    : vectorIndex.search(query, topK).size();
+                    // Search benchmark uses a random vector and has no source question text for lexical search.
+                    : vectorIndex.search(null, query, topK).size();
             totalNanos += System.nanoTime() - start;
         }
         double avgMs = totalNanos / 1_000_000.0 / runs;

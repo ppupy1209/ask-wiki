@@ -35,7 +35,7 @@ public class WikiMcpTools {
             @ToolParam(description = "검색할 자연어 질의") String query,
             @ToolParam(description = "반환할 최대 청크 수 (기본 4)", required = false) Integer topK) {
         int k = (topK == null || topK < 1) ? 4 : topK;
-        return vectorIndex.search(embeddingClient.embed(query), k);
+        return vectorIndex.search(query, embeddingClient.embed(query), k);
     }
 
     @Tool(name = "ask_wiki", description = "사내 위키 문서를 근거로 질문에 답한다. 검색 후 LLM이 답변을 생성하고 출처를 함께 반환한다. 근거가 없으면 모른다고 답한다.")

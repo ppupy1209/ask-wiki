@@ -104,14 +104,14 @@ class MultiTurnRewriteEvalTest {
             Long expectedDocId = slugToId.get(expectedDocSlug);
 
             float[] offVector = embeddingClient.embed(followUp);
-            List<Long> offTopDocIds = vectorIndex.search(offVector, 8).stream()
+            List<Long> offTopDocIds = vectorIndex.search(followUp, offVector, 8).stream()
                     .map(ChunkMatch::documentId)
                     .toList();
 
             List<Message> history = List.of(new UserMessage(turn1), new AssistantMessage(turn1Answer));
             String standalone = questionRewriter.rewrite(followUp, history);
             float[] onVector = embeddingClient.embed(standalone);
-            List<Long> onTopDocIds = vectorIndex.search(onVector, 8).stream()
+            List<Long> onTopDocIds = vectorIndex.search(standalone, onVector, 8).stream()
                     .map(ChunkMatch::documentId)
                     .toList();
 

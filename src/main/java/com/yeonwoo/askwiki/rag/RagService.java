@@ -36,7 +36,7 @@ public class RagService {
 
         float[] questionVector = embeddingClient.embed(question);
 
-        List<ChunkMatch> matches = vectorIndex.search(questionVector, topK);
+        List<ChunkMatch> matches = vectorIndex.search(question, questionVector, topK);
 
         if (matches.isEmpty()) {
             return new RagResult.NoContext();

@@ -31,7 +31,7 @@ public class WikiSearchTool {
 
     @Tool(name = "search_wiki", description = "사내 위키 문서에서 질의로 관련 문서 조각을 검색한다. 답에 필요한 정보를 찾을 때까지 다른 키워드로 질의를 바꿔가며 여러 번 호출해도 된다.")
     public String search(@ToolParam(description = "검색 질의 (핵심 키워드로 재작성 가능)") String query) {
-        List<ChunkMatch> hits = vectorIndex.search(embeddingClient.embed(query), topK);
+        List<ChunkMatch> hits = vectorIndex.search(query, embeddingClient.embed(query), topK);
         retrieved.addAll(hits);
 
         if (hits.isEmpty()) {

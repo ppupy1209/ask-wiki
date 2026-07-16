@@ -33,10 +33,11 @@ public class EsVectorIndex implements VectorIndex {
 
     private static final int VECTOR_DIMS = 768;
     // 단일 벌크로 전량을 보내면 N이 커질 때 요청 본문(수백 MB)이 힙과 ES http.max_content_length(기본 100MB)를
-    // 넘긴다(20k 스케일 벤치에서 OOM으로 실측). 배치로 나눠 각 벌크 본문을 유계로 유지한다.
+    // 넘긴다(20k 스케일 벤치에서 OOM으로 실측). 기본 500자 청크 본문을 더해도 500건은 수 MB 수준이라
+    // 벡터 페이로드가 지배적인 기존 배치 크기를 유지하고, 각 벌크 본문을 유계로 둔다.
     private static final int BULK_BATCH_SIZE = 500;
 
-    private record IndexedChunk(Long documentId, int seq, float[] vector) {}
+    private record IndexedChunk(Long documentId, int seq, String content, float[] vector) {}
 
     private final ElasticsearchClient client;
     private final EmbeddingCodec embeddingCodec;
@@ -131,7 +132,8 @@ public class EsVectorIndex implements VectorIndex {
      * cosine so B2 score-distribution comparisons keep InMemoryVectorIndex's [-1, 1] scale.
      */
     @Override
-    public List<ChunkMatch> search(float[] queryVector, int topK) {
+    public List<ChunkMatch> search(String queryText, float[] queryVector, int topK) {
+        // B5-1 keeps the existing kNN-only path; B5-2 will use queryText for the BM25 branch.
         if (topK <= 0 || !indexExists()) {
             return List.of();
         }
@@ -142,7 +144,9 @@ public class EsVectorIndex implements VectorIndex {
                         .field("vector")
                         .queryVector(toFloatList(queryVector))
                         .k((long) topK)
-                        .numCandidates(Math.max(100L, topK * 10L))), IndexedChunk.class));
+                        .numCandidates(Math.max(100L, topK * 10L)))
+                // content is indexed for future BM25, but ChunkMatch remains hydrated from MySQL.
+                .source(source -> source.filter(filter -> filter.includes("documentId", "seq"))), IndexedChunk.class));
         List<Hit<IndexedChunk>> hits = response.hits().hits();
 
         // Fetch only the k matching rows; the vector index is never hydrated by a full DB scan.
@@ -182,6 +186,7 @@ public class EsVectorIndex implements VectorIndex {
                 .mappings(mapping -> mapping
                         .properties("documentId", property -> property.long_(value -> value))
                         .properties("seq", property -> property.integer(value -> value))
+                        .properties("content", property -> property.text(text -> text))
                         .properties("vector", property -> property.denseVector(vector -> vector
                                 .dims(VECTOR_DIMS)
                                 .index(true)
@@ -200,7 +205,8 @@ public class EsVectorIndex implements VectorIndex {
 
     private IndexedChunk toIndexedChunk(Chunk chunk) {
         // Elasticsearch's cosine similarity normalizes vectors while searching; retain the raw embedding here.
-        return new IndexedChunk(chunk.getDocumentId(), chunk.getSeq(), embeddingCodec.deserialize(chunk.getEmbedding()));
+        return new IndexedChunk(chunk.getDocumentId(), chunk.getSeq(), chunk.getContent(),
+                embeddingCodec.deserialize(chunk.getEmbedding()));
     }
 
     private static List<Float> toFloatList(float[] vector) {

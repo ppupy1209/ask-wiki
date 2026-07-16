@@ -31,13 +31,13 @@ class WikiMcpToolsTest {
         float[] embedding = {0.1f, 0.2f};
         List<ChunkMatch> expected = List.of(chunk());
         when(embeddingClient.embed(QUESTION)).thenReturn(embedding);
-        when(vectorIndex.search(embedding, 4)).thenReturn(expected);
+        when(vectorIndex.search(QUESTION, embedding, 4)).thenReturn(expected);
 
         List<ChunkMatch> result = tools.searchWiki(QUESTION, null);
 
         assertThat(result).isSameAs(expected);
         verify(embeddingClient).embed(QUESTION);
-        verify(vectorIndex).search(embedding, 4);
+        verify(vectorIndex).search(QUESTION, embedding, 4);
         verifyNoInteractions(askService);
     }
 

@@ -26,7 +26,8 @@ public interface VectorIndex {
     int size();
 
     /**
-     * Guarantees a consistent snapshot read of the index.
+     * Guarantees a consistent snapshot read of the index. {@code queryText} is reserved for B5-2
+     * lexical search; vector-only implementations may ignore it.
      */
-    List<ChunkMatch> search(float[] query, int topK);
+    List<ChunkMatch> search(String queryText, float[] queryVector, int topK);
 }

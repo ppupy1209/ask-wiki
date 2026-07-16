@@ -1,5 +1,7 @@
 package com.yeonwoo.askwiki.search;
 
+import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch.core.GetResponse;
 import com.yeonwoo.askwiki.common.ChunkMatch;
 import com.yeonwoo.askwiki.document.Chunk;
 import com.yeonwoo.askwiki.document.ChunkRepository;
@@ -10,6 +12,7 @@ import com.yeonwoo.askwiki.embedding.EmbeddingCodec;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
@@ -22,6 +25,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -60,6 +64,12 @@ class EsVectorIndexTest {
     @Autowired
     EmbeddingCodec embeddingCodec;
 
+    @Autowired
+    ElasticsearchClient elasticsearchClient;
+
+    @Value("${askwiki.es.index:askwiki-chunks}")
+    String indexName;
+
     @MockBean
     EmbeddingClient embeddingClient;
 
@@ -90,7 +100,7 @@ class EsVectorIndexTest {
         vectorIndex.add(middle);
         vectorIndex.add(farthest);
 
-        List<ChunkMatch> matches = vectorIndex.search(vector(0, 1.0f), 3);
+        List<ChunkMatch> matches = vectorIndex.search(null, vector(0, 1.0f), 3);
 
         assertEquals(closest.getId(), matches.getFirst().chunkId());
         assertTrue(matches.stream().allMatch(match -> match.score() >= -1.0 && match.score() <= 1.0));
@@ -110,7 +120,7 @@ class EsVectorIndexTest {
         vectorIndex.removeDocument(deleted.getId());
 
         assertEquals(1, vectorIndex.size());
-        List<ChunkMatch> matches = vectorIndex.search(vector(2, 1.0f), 10);
+        List<ChunkMatch> matches = vectorIndex.search(null, vector(2, 1.0f), 10);
         assertFalse(matches.isEmpty());
         assertTrue(matches.stream().allMatch(match -> match.documentId().equals(retained.getId())));
     }
@@ -127,6 +137,19 @@ class EsVectorIndexTest {
 
         assertEquals(chunkRepository.count(), rebuilt);
         assertEquals(chunkRepository.count(), vectorIndex.size());
+    }
+
+    @Test
+    void addIndexesChunkContentForFutureLexicalSearch() throws Exception {
+        Chunk chunk = saveChunk(saveDocument("content"), 0, "연차 휴가는 승인 후 사용합니다.", vector(0, 1.0f));
+
+        vectorIndex.add(chunk);
+
+        GetResponse<Map> response = elasticsearchClient.get(get -> get
+                .index(indexName)
+                .id(chunk.getId().toString()), Map.class);
+        assertTrue(response.found());
+        assertEquals(chunk.getContent(), response.source().get("content"));
     }
 
     private Document saveDocument(String title) {

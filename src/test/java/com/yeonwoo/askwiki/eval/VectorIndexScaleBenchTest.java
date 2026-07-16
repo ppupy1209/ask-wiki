@@ -120,12 +120,12 @@ class VectorIndexScaleBenchTest {
 
         // 워밍업(JIT·ES 캐시) — 타이밍에서 제외.
         for (int i = 0; i < WARMUP; i++) {
-            memoryIndex.search(queries.get(i), TOP_K);
-            esIndex.search(queries.get(i), TOP_K);
+            memoryIndex.search(null, queries.get(i), TOP_K);
+            esIndex.search(null, queries.get(i), TOP_K);
         }
 
-        Stats memLatency = measureLatency(queries, q -> memoryIndex.search(q, TOP_K));
-        Stats esLatency = measureLatency(queries, q -> esIndex.search(q, TOP_K));
+        Stats memLatency = measureLatency(queries, q -> memoryIndex.search(null, q, TOP_K));
+        Stats esLatency = measureLatency(queries, q -> esIndex.search(null, q, TOP_K));
 
         // recall: ES 프로덕션 경로(num_candidates=100) vs InMemory 정확 top-k.
         double prodRecall = averageRecall(queries, TOP_K, -1);
@@ -154,10 +154,10 @@ class VectorIndexScaleBenchTest {
     private double averageRecall(List<float[]> queries, int topK, int numCandidates) {
         double sum = 0.0;
         for (float[] q : queries) {
-            Set<Long> exact = memoryIndex.search(q, topK).stream()
+            Set<Long> exact = memoryIndex.search(null, q, topK).stream()
                     .map(ChunkMatch::chunkId).collect(Collectors.toSet());
             Set<Long> approx = numCandidates < 0
-                    ? esIndex.search(q, topK).stream().map(ChunkMatch::chunkId).collect(Collectors.toSet())
+                    ? esIndex.search(null, q, topK).stream().map(ChunkMatch::chunkId).collect(Collectors.toSet())
                     : rawEsKnnIds(q, topK, numCandidates);
             long overlap = approx.stream().filter(exact::contains).count();
             sum += exact.isEmpty() ? 1.0 : (double) overlap / exact.size();

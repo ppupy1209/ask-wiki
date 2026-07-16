@@ -32,14 +32,14 @@ class AgenticRagServiceTest {
         ChunkMatch hit = chunk(1L, 10L, "휴가 규정", 0, "휴가는 사전 승인 후 사용합니다.", 0.91);
         WikiSearchTool tool = new WikiSearchTool(embeddingClient, vectorIndex, 4);
         when(embeddingClient.embed(QUESTION)).thenReturn(embedding);
-        when(vectorIndex.search(embedding, 4)).thenReturn(List.of(hit));
+        when(vectorIndex.search(QUESTION, embedding, 4)).thenReturn(List.of(hit));
 
         String result = tool.search(QUESTION);
 
         assertThat(result).isEqualTo("[휴가 규정] 휴가는 사전 승인 후 사용합니다.");
         assertThat(tool.retrieved()).containsExactly(hit);
         verify(embeddingClient).embed(QUESTION);
-        verify(vectorIndex).search(embedding, 4);
+        verify(vectorIndex).search(QUESTION, embedding, 4);
     }
 
     @Test
@@ -47,7 +47,7 @@ class AgenticRagServiceTest {
         float[] embedding = {0.1f};
         WikiSearchTool tool = new WikiSearchTool(embeddingClient, vectorIndex, 4);
         when(embeddingClient.embed(QUESTION)).thenReturn(embedding);
-        when(vectorIndex.search(embedding, 4)).thenReturn(List.of());
+        when(vectorIndex.search(QUESTION, embedding, 4)).thenReturn(List.of());
 
         String result = tool.search(QUESTION);
 

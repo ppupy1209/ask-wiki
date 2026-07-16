@@ -98,7 +98,7 @@ class ScoreDistributionEvalTest {
         List<Double> scores = new ArrayList<>();
         for (JsonNode node : questions) {
             String question = node.get("question").asText();
-            List<ChunkMatch> top = vectorIndex.search(embeddingClient.embed(question), 1);
+            List<ChunkMatch> top = vectorIndex.search(question, embeddingClient.embed(question), 1);
             scores.add(top.isEmpty() ? 0.0 : top.get(0).score());
         }
         scores.sort(Double::compareTo);
