@@ -1,0 +1,43 @@
+{
+  "_comment": "C3-2 질문 분류(라우팅) 정확도 골든셋. 36문항 = WIKI 15 / CHITCHAT 12 / AMBIGUOUS 9. 핵심 구분: 라우터는 '답이 코퍼스에 있느냐'(answerability)가 아니라 '사내 위키를 찾아야 하느냐'(intent)를 분류한다 → '육아휴직은 며칠인가요?'는 코퍼스에 답이 없어도 WIKI가 정답이다(검색 후 '모르겠습니다'가 옳은 동작). 그래서 B2의 unanswerable 20문항을 CHITCHAT으로 재활용하면 안 된다. 측정은 QuestionRouter.classify()를 그대로 호출한다 = normalize()까지 포함한 실제 프로덕션 동작(비-WIKI인데 message가 비면 WIKI로 내려가는 것도 실제 결과이므로 그대로 집계). 라벨은 Claude 초안 — WIKI/CHITCHAT 경계는 명확하나 AMBIGUOUS는 판단이 갈릴 수 있어 연우님 검수 권장. 참고: 프롬프트가 '애매하면 WIKI'(fail-open)로 지시하므로 AMBIGUOUS→WIKI 누출은 설계상 기대되는 방향이다. 그래서 AMBIGUOUS 항목은 '검색해도 무의미할 만큼 명백히 모호한 것'만 넣었다.",
+  "classification": [
+    { "question": "연차 휴가는 며칠 부여되나요?", "expected": "WIKI" },
+    { "question": "급여일은 언제인가요?", "expected": "WIKI" },
+    { "question": "재택근무는 주 며칠까지 가능한가요?", "expected": "WIKI" },
+    { "question": "비밀번호는 몇 자 이상이어야 하나요?", "expected": "WIKI" },
+    { "question": "복지 포인트는 1년에 얼마 지급되나요?", "expected": "WIKI" },
+    { "question": "수습 기간은 얼마나 되나요?", "expected": "WIKI" },
+    { "question": "국내 출장 숙박비 한도가 얼마예요?", "expected": "WIKI" },
+    { "question": "업무용 노트북 교체 주기가 어떻게 되나요?", "expected": "WIKI" },
+    { "question": "법인카드 영수증은 언제까지 등록해야 하나요?", "expected": "WIKI" },
+    { "question": "상여금은 언제 지급되나요?", "expected": "WIKI" },
+    { "question": "병가는 연간 며칠까지 쓸 수 있나요?", "expected": "WIKI" },
+    { "question": "지각을 몇 번 하면 서면 경고를 받나요?", "expected": "WIKI" },
+    { "question": "육아휴직은 며칠까지 쓸 수 있나요?", "expected": "WIKI", "note": "코퍼스에 답 없음 — 그래도 위키를 찾아야 하는 질문이므로 WIKI가 정답(intent != answerability)" },
+    { "question": "퇴직금은 어떻게 계산하나요?", "expected": "WIKI", "note": "코퍼스에 답 없음 — intent는 위키" },
+    { "question": "회의실은 어떻게 예약하나요?", "expected": "WIKI", "note": "코퍼스에 답 없음 — intent는 위키" },
+
+    { "question": "안녕하세요", "expected": "CHITCHAT" },
+    { "question": "고마워요", "expected": "CHITCHAT" },
+    { "question": "잘 있어", "expected": "CHITCHAT" },
+    { "question": "너는 뭘 할 수 있어?", "expected": "CHITCHAT", "note": "챗봇 기능 문의" },
+    { "question": "넌 누구야?", "expected": "CHITCHAT", "note": "챗봇 정체 문의" },
+    { "question": "이 챗봇은 어떤 문서를 알고 있어?", "expected": "CHITCHAT", "note": "챗봇 기능 문의 — 위키 내용이 아니라 봇 자체에 대한 질문" },
+    { "question": "오늘 날씨 어때?", "expected": "CHITCHAT", "note": "도메인 외 일반 지식" },
+    { "question": "파이썬으로 리스트 정렬하는 법 알려줘", "expected": "CHITCHAT", "note": "도메인 외 일반 지식" },
+    { "question": "대한민국 수도가 어디야?", "expected": "CHITCHAT", "note": "도메인 외 일반 지식" },
+    { "question": "1 더하기 1은?", "expected": "CHITCHAT", "note": "도메인 외" },
+    { "question": "점심 뭐 먹을까?", "expected": "CHITCHAT", "note": "잡담" },
+    { "question": "재미있는 농담 하나 해줘", "expected": "CHITCHAT", "note": "잡담" },
+
+    { "question": "그거 알려줘", "expected": "AMBIGUOUS" },
+    { "question": "어떻게 해요?", "expected": "AMBIGUOUS" },
+    { "question": "얼마예요?", "expected": "AMBIGUOUS" },
+    { "question": "언제까지예요?", "expected": "AMBIGUOUS" },
+    { "question": "규정", "expected": "AMBIGUOUS", "note": "명사 하나 — 무엇을 묻는지 특정 불가" },
+    { "question": "신청하고 싶어요", "expected": "AMBIGUOUS", "note": "무엇을 신청하는지 없음" },
+    { "question": "그거 며칠이에요?", "expected": "AMBIGUOUS" },
+    { "question": "가능한가요?", "expected": "AMBIGUOUS" },
+    { "question": "확인 좀 해주세요", "expected": "AMBIGUOUS" }
+  ]
+}
