@@ -69,9 +69,9 @@ flowchart LR
 ## 기술 스택
 
 - **Java 21** (Record · sealed interface + switch 패턴 매칭 · Virtual Threads), **Spring Boot 3.3.5**
-- **Spring AI 1.0.9** (Ollama 임베딩·챗)
-- **MySQL 8.4** (Flyway 마이그레이션), 임베딩은 `JSON` 컬럼 저장 + 애플리케이션 코사인 검색
-- **Ollama** (로컬·무료 LLM): 임베딩 `nomic-embed-text`, 챗 `llama3.2:3b`
+- **Spring AI 1.0.9** — 챗 LLM은 **프로바이더 스위치**(`ASKWIKI_LLM_PROVIDER=ollama|gemini`), 임베딩은 Ollama 고정
+- **MySQL 8.4** (Flyway 마이그레이션) — 문서·청크·임베딩 원본 저장 / **Elasticsearch 8.17 kNN** — 벡터 검색(`VECTOR_INDEX_IMPL=elasticsearch`, 기본은 인메모리 인덱스)
+- **LLM**: 임베딩 `nomic-embed-text`(로컬·무료 고정) · 챗 `llama3.2:3b`(기본·키 불필요) 또는 `gemini-3.1-flash-lite`(무료 키·**환각 0% 실측**)
 - **Redis** (질의 응답 분산 캐시), **Caffeine** (임베딩 인스턴스 로컬 메모이제이션)
 - **관측성**: Micrometer · Prometheus · Grafana / **부하**: k6
 - **실행**: Docker Compose (앱 컴파일도 컨테이너의 Java 21이 담당하므로 호스트 JDK 불필요)
@@ -80,19 +80,49 @@ flowchart LR
 
 ## 빠른 실행 (면접관용, 필요한 것은 Docker뿐)
 
+> **먼저 읽어주세요 — 챗 모델을 무엇으로 두느냐가 품질을 가릅니다.**
+> 이 레포는 골든셋으로 두 경로를 **직접 측정**했고, 숨기지 않고 그대로 적습니다.
+>
+> | | **A. 무료 Gemini 키 (권장)** | **B. 로컬 Ollama만 (키 0)** |
+> |---|---|---|
+> | 환각률 (문서에 없는 질문에 지어냄) | **0%** | **75%** |
+> | 질문 분류 정확도 | 97.2% | 41.7% *(전부 검색으로 찍는 축퇴)* |
+> | 멀티턴 follow-up 재작성 | 정상 | 환각·언어 혼입 |
+> | 응답 지연 (평균) | **0.6s** | 8.8s |
+> | 준비물 | 무료 키 1개 (카드 불필요) | 없음 |
+>
+> B는 **키 없이 5분 만에 돌려보는 용도**로는 충분하지만, 답변 품질로 이 프로젝트를 판단하시려면 A로 봐주세요.
+> 측정 방법·조건·해석은 [`docs/design-notes.md`](docs/design-notes.md) §4(프로바이더 비교)·§7(분류·재작성)에 있습니다.
+> 프롬프트를 4종까지 바꿔봐도 로컬 3B의 환각 바닥은 안 내려갔고(60~75%), **모델을 바꾸자 0%가 됐습니다** — 그 실험 기록이 이 프로젝트의 핵심 중 하나입니다.
+
 ```bash
 git clone https://github.com/ppupy1209/ask-wiki.git
 cd ask-wiki
 
-# 1) 전체 스택 기동 (앱은 컨테이너 안 Java 21로 빌드됨)
-docker compose up --build -d
-
-# 2) 로컬 LLM 모델 최초 1회 pull (약 2GB, 몇 분 소요)
+# 1) 임베딩 모델은 어느 경로든 필요 (약 270MB)
+docker compose up -d ollama
 docker compose exec ollama ollama pull nomic-embed-text
-docker compose exec ollama ollama pull llama3.2:3b
+```
 
-# 3) 헬스 체크
+**A. 무료 Gemini 키로 (권장 — 환각 0%)**
+
+```bash
+# https://aistudio.google.com/apikey 에서 무료 키 발급 (카드 등록 불필요)
+cp .env.example .env
+#  .env 에서 두 줄만 수정:
+#    ASKWIKI_LLM_PROVIDER=gemini
+#    GOOGLE_GENAI_API_KEY=발급받은_키
+
+docker compose up --build -d
 curl http://localhost:8080/actuator/health      # {"status":"UP"}
+```
+
+**B. 키 없이 로컬만 (환각 75% — 구조 확인용)**
+
+```bash
+docker compose exec ollama ollama pull llama3.2:3b   # 챗 모델 추가 (약 2GB)
+docker compose up --build -d
+curl http://localhost:8080/actuator/health
 ```
 
 | 서비스 | URL |
@@ -220,7 +250,7 @@ bench/         k6 부하 스크립트
 ## 왜 이렇게 만들었나 (설계 노트)
 
 - **RagResult를 sealed interface로**: 답변/컨텍스트 없음/LLM 오류를 타입으로 강제하고, 컨트롤러에서 `switch` 패턴 매칭으로 누락 없이 처리
-- **임베딩을 별도 벡터 DB 없이 MySQL JSON에**: study ③에서 "전수 스캔의 한계와 최적화"를 직접 다루기 위한 의도적 선택
-- **로컬 Ollama**: API 키·비용 없이 누구나 클론 후 바로 실행 가능
+- **임베딩을 별도 벡터 DB 없이 MySQL JSON에서 출발**: study ③에서 "전수 스캔의 한계와 최적화"를 직접 다루기 위한 의도적 선택. 이후 인메모리 인덱스 → **Elasticsearch kNN**으로 이행하며 정합성·회귀 없음을 측정으로 증명했다(`docs/design-notes.md` §5).
+- **로컬 Ollama를 기본값으로**: API 키·비용 없이 클론 후 바로 실행할 수 있다. **다만 품질의 기본값은 아니다** — 골든셋으로 재보니 llama3.2:3b는 환각률 75%였고, 프롬프트로는 그 바닥을 못 깼다. 그래서 **챗 LLM만 교체 가능한 프로바이더 스위치**(`ASKWIKI_LLM_PROVIDER`)를 두고 무료 Gemini로 환각 0%를 실측했다(임베딩은 고정해 원인을 LLM으로 귀속). "키 없이 돈다"와 "품질이 좋다"는 다른 문제이고, 이 레포는 **둘을 섞지 않고 둘 다 말한다**.
 
 자세한 계약(API·스키마·버전)은 [`docs/DESIGN.md`](docs/DESIGN.md).

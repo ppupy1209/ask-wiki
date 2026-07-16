@@ -82,14 +82,27 @@
 
 ## 4. 실행 방법 (필요한 건 Docker 뿐, 자바 설치 불필요)
 
+> ⚠️ **기본값(Ollama 3B)은 환각률 75%다.** 골든셋 실측이고, 프롬프트로는 못 내렸다(C2). **무료 Gemini 키 1개면 0%**가 된다(분류 97.2%·지연 0.6s). 품질을 보려면 A로, 구조만 보려면 B로.
+
 ```bash
-docker compose up --build -d
-# 최초 1회만 AI 모델 다운로드 (약 2GB, 몇 분)
+# 임베딩 모델은 두 경로 공통 (약 270MB)
+docker compose up -d ollama
 docker compose exec ollama ollama pull nomic-embed-text
-docker compose exec ollama ollama pull llama3.2:3b
+
+# A) 권장 — 무료 Gemini 키 (환각 0%). https://aistudio.google.com/apikey (카드 불필요)
+cp .env.example .env      # ASKWIKI_LLM_PROVIDER=gemini · GOOGLE_GENAI_API_KEY=... 두 줄 수정
+docker compose up --build -d
+
+# B) 키 없이 (환각 75%)
+docker compose exec ollama ollama pull llama3.2:3b     # 약 2GB
+docker compose up --build -d
+
 # 확인
 curl http://localhost:8080/actuator/health      # {"status":"UP"} 나오면 성공
 ```
+
+- 품질 스위치는 전부 `.env`로 오버라이드된다(`ASKWIKI_LLM_PROVIDER`·`GOOGLE_GENAI_API_KEY`·`VECTOR_INDEX_IMPL`·`ASKWIKI_ROUTING_ENABLED`). **2026-07-14 이전엔 compose가 이 값들을 앱 컨테이너로 넘기지 않아 C2 프로바이더 스위치·C1 ES가 `docker compose up` 경로에선 도달 불가였다** — 그때 고쳤다.
+- 라우팅(C3-2)은 **기본 off 유지**가 맞다: 3B에선 전부 WIKI로 찍는 축퇴(41.7%)라 이득 0에 토큰만 쓴다. gemini일 때만 켤 것.
 - 포트 충돌(로컬에 MySQL 3306 등이 이미 떠 있을 때): `.env.example`을 `.env`로 복사해 포트만 바꾸기
 - 종료: `docker compose down`
 

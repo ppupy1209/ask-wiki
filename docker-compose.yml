@@ -12,6 +12,17 @@ services:
       DOWNSTREAM_URL: http://httpbin:8080
       REDIS_HOST: redis
       ES_URL: http://elasticsearch:9200
+      # --- 품질 스위치 (.env로 오버라이드). 값은 application.yml의 기본과 동일하게 맞춰 둔다. ---
+      # 챗 LLM 프로바이더 (C2). ollama = 키 불필요하지만 환각 75% 실측(llama3.2:3b).
+      # gemini = 무료 키 하나로 환각 0%·지연 0.6s 실측 → .env에 GOOGLE_GENAI_API_KEY 넣고 이 값을 gemini로.
+      # 임베딩은 어느 쪽이든 Ollama nomic-embed-text 고정(실험 통제 — design-notes §4).
+      ASKWIKI_LLM_PROVIDER: ${ASKWIKI_LLM_PROVIDER:-ollama}
+      GOOGLE_GENAI_API_KEY: ${GOOGLE_GENAI_API_KEY:-}
+      # 벡터 인덱스 (C1). memory = 인메모리 브루트포스, elasticsearch = ES kNN(아래 컨테이너가 이미 뜬다).
+      VECTOR_INDEX_IMPL: ${VECTOR_INDEX_IMPL:-memory}
+      # 질문 분류·라우팅 (C3-2). 약한 모델에선 전부 WIKI로 찍는 축퇴 분류기가 되므로(41.7% 실측)
+      # 기본 off. gemini일 때만 켤 것(97.2% 실측).
+      ASKWIKI_ROUTING_ENABLED: ${ASKWIKI_ROUTING_ENABLED:-false}
     depends_on:
       mysql:
         condition: service_healthy
